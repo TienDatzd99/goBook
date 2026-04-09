@@ -98,6 +98,7 @@ export default function LoginPage() {
       if (isLogin) {
         await login(form.email, form.password);
         navigate('/');
+        window.location.reload();
       } else {
         const result = await register({ name: form.name.trim(), email: form.email, password: form.password, phone: form.phone });
         if (result.needVerification) {
@@ -105,6 +106,7 @@ export default function LoginPage() {
         } else {
           await login(form.email, form.password);
           navigate('/');
+          window.location.reload();
         }
       }
     } catch (err) {
@@ -147,6 +149,7 @@ export default function LoginPage() {
       if (!res.ok) throw data;
       localStorage.setItem('mlb_token', data.token);
       navigate('/');
+      window.location.reload();
     } catch (err) {
       setApiError(err.error || 'Đăng nhập Google thất bại. Vui lòng thử lại.');
     } finally {

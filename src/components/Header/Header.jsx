@@ -25,6 +25,7 @@ export default function Header() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchFocus, setSearchFocus] = useState(false);
   const searchRef = useRef(null);
+  const userMenuCloseTimer = useRef(null);
 
   const displayName = user?.name?.trim() || 'Tài khoản';
   const shortName = displayName.split(' ').slice(-1)[0];
@@ -46,6 +47,21 @@ export default function Header() {
       navigate(`/tim-kiem?q=${encodeURIComponent(searchTerm.trim())}`);
       setSearchTerm('');
     }
+  };
+
+  const openUserMenu = () => {
+    if (userMenuCloseTimer.current) {
+      clearTimeout(userMenuCloseTimer.current);
+      userMenuCloseTimer.current = null;
+    }
+    setUserMenuOpen(true);
+  };
+
+  const closeUserMenu = () => {
+    if (userMenuCloseTimer.current) clearTimeout(userMenuCloseTimer.current);
+    userMenuCloseTimer.current = setTimeout(() => {
+      setUserMenuOpen(false);
+    }, 180);
   };
 
   return (
@@ -124,8 +140,8 @@ export default function Header() {
             {/* Account */}
             <div
               className="action-dropdown"
-              onMouseEnter={() => setUserMenuOpen(true)}
-              onMouseLeave={() => setUserMenuOpen(false)}
+              onMouseEnter={openUserMenu}
+              onMouseLeave={closeUserMenu}
             >
               <Link to={user ? '/tai-khoan' : '/dang-nhap'} className="action-btn" id="account-btn">
                 {user ? (
@@ -149,7 +165,7 @@ export default function Header() {
                 </span>
               </Link>
               {userMenuOpen && !user && (
-                <div className="user-dropdown">
+                <div className="user-dropdown" onMouseEnter={openUserMenu} onMouseLeave={closeUserMenu}>
                   <Link to="/dang-nhap" className="user-drop-link" id="login-dropdown">
                     🔑 Đăng nhập
                   </Link>
@@ -163,7 +179,7 @@ export default function Header() {
                 </div>
               )}
               {userMenuOpen && user && (
-                <div className="user-dropdown">
+                <div className="user-dropdown" onMouseEnter={openUserMenu} onMouseLeave={closeUserMenu}>
                   <div className="user-drop-name">👋 {user.name}</div>
                   <div className="user-drop-divider" />
                   <Link to="/tai-khoan" className="user-drop-link">👤 Tài khoản</Link>
