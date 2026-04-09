@@ -4,7 +4,11 @@ import App from './App.jsx'
 import './index.css'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your_google_client_id_here'
+const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim()
+
+if (!GOOGLE_CLIENT_ID) {
+  console.error('Missing VITE_GOOGLE_CLIENT_ID. Google login is disabled.')
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { useGoogleLogin } from '@react-oauth/google';
 import './LoginPage.css';
 
+const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+const GOOGLE_LOGIN_ENABLED = GOOGLE_CLIENT_ID.length > 0;
+
 // ── Validation helpers ──
 const hasNumber = (str) => /\d/.test(str);
 const onlyDigits = (str) => /^\d*$/.test(str);
@@ -153,6 +156,14 @@ export default function LoginPage() {
     onError: () => setApiError('Đăng nhập Google bị hủy hoặc thất bại'),
   });
 
+  const handleGoogleClick = () => {
+    if (!GOOGLE_LOGIN_ENABLED) {
+      setApiError('Google Login chưa được cấu hình. Vui lòng liên hệ quản trị viên.');
+      return;
+    }
+    googleLogin();
+  };
+
   // ── Resend verification email ──
   const handleResend = async () => {
     if (!successState?.email) return;
@@ -232,8 +243,8 @@ export default function LoginPage() {
             type="button"
             className="social-auth-btn google-primary"
             id="google-login"
-            onClick={() => googleLogin()}
-            disabled={loading}
+            onClick={handleGoogleClick}
+            disabled={loading || !GOOGLE_LOGIN_ENABLED}
             style={{
               width: '100%',
               display: 'flex',
@@ -243,11 +254,11 @@ export default function LoginPage() {
               padding: '12px 16px',
               border: '1.5px solid #e0e0e0',
               borderRadius: 10,
-              background: '#fff',
+              background: GOOGLE_LOGIN_ENABLED ? '#fff' : '#f5f5f5',
               cursor: 'pointer',
               fontSize: 15,
               fontWeight: 600,
-              color: '#333',
+              color: GOOGLE_LOGIN_ENABLED ? '#333' : '#888',
               boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
               transition: 'all 0.15s',
             }}
