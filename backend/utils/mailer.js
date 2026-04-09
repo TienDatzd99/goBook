@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 
 // ── Tạo transporter (dùng Gmail App Password hoặc Ethereal cho dev) ──
 let transporter = null;
-const MAIL_TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS || 10000);
+const MAIL_TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS || 30000);
 
 function getMailUser() {
   return (process.env.MAIL_USER || '').trim();
@@ -40,6 +40,7 @@ function isProductionRuntime() {
 function createSmtpTransport(config) {
   return nodemailer.createTransport({
     ...config,
+    family: 4,
     connectionTimeout: MAIL_TIMEOUT_MS,
     greetingTimeout: MAIL_TIMEOUT_MS,
     socketTimeout: MAIL_TIMEOUT_MS,
@@ -66,29 +67,48 @@ function isMailConfigured() {
   return hasMailCredentials();
 }
 
+function buildGmailTransportForPort(port) {
+  const host = getMailHost();
+  const secure = getMailSecure(port);
+  return createSmtpTransport({
+    host,
+    port,
+    secure,
+    requireTLS: !secure,
+    auth: {
+      user: getMailUser(),
+      pass: getMailPass(),
+    },
+  });
+}
+
+async function sendWithGmailFallback(currentTransport, payload) {
+  try {
+    return await currentTransport.sendMail(payload);
+  } catch (err) {
+    const host = getMailHost();
+    const port = getMailPort();
+    const isTimeout = err?.code === 'ETIMEDOUT' || /timeout/i.test(err?.message || '');
+    const isGmail = host === 'smtp.gmail.com';
+
+    if (!isTimeout || !isGmail) throw err;
+
+    const altPort = port === 465 ? 587 : 465;
+    const altTransport = buildGmailTransportForPort(altPort);
+    return await altTransport.sendMail(payload);
+  }
+}
+
 async function getTransporter() {
   if (transporter) return transporter;
 
   const hasCredentials = hasMailCredentials();
 
   if (hasCredentials) {
-    const mailUser = getMailUser();
-    const mailPass = getMailPass();
-    const host = getMailHost();
     const port = getMailPort();
-    const secure = getMailSecure(port);
 
     // Production: Gmail SMTP
-    transporter = createSmtpTransport({
-      host,
-      port,
-      secure,
-      requireTLS: !secure,
-      auth: {
-        user: mailUser,
-        pass: mailPass,
-      },
-    });
+    transporter = buildGmailTransportForPort(port);
     console.log('📧 Mail: Using Gmail SMTP');
   } else {
     if (isProductionRuntime()) {
@@ -163,25 +183,7 @@ async function sendVerificationEmail(to, name, token) {
     `,
   };
 
-  let info;
-  try {
-    info = await t.sendMail(payload);
-  } catch (err) {
-    const host = getMailHost();
-    const port = getMailPort();
-    if ((err?.code === 'ETIMEDOUT' || /timeout/i.test(err?.message || '')) && host === 'smtp.gmail.com' && port === 587) {
-      // Fallback for environments where STARTTLS on 587 is unstable.
-      t = createSmtpTransport({
-        host,
-        port: 465,
-        secure: true,
-        auth: { user: getMailUser(), pass: getMailPass() },
-      });
-      info = await t.sendMail(payload);
-    } else {
-      throw err;
-    }
-  }
+  const info = await sendWithGmailFallback(t, payload);
 
   // In link preview trong console (dev mode)
   const previewUrl = nodemailer.getTestMessageUrl(info);
@@ -227,23 +229,7 @@ async function sendWelcomeEmail(to, name) {
     `,
   };
 
-  try {
-    await t.sendMail(payload);
-  } catch (err) {
-    const host = getMailHost();
-    const port = getMailPort();
-    if ((err?.code === 'ETIMEDOUT' || /timeout/i.test(err?.message || '')) && host === 'smtp.gmail.com' && port === 587) {
-      t = createSmtpTransport({
-        host,
-        port: 465,
-        secure: true,
-        auth: { user: getMailUser(), pass: getMailPass() },
-      });
-      await t.sendMail(payload);
-      return;
-    }
-    throw err;
-  }
+  await sendWithGmailFallback(t, payload);
 }
 
 module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter, isMailConfigured, getMailFrom };
