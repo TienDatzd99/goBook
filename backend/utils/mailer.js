@@ -46,6 +46,22 @@ function createSmtpTransport(config) {
   });
 }
 
+function getMailHost() {
+  return (process.env.MAIL_HOST || 'smtp.gmail.com').trim();
+}
+
+function getMailPort() {
+  const parsed = Number(process.env.MAIL_PORT);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 587;
+}
+
+function getMailSecure(port) {
+  if (typeof process.env.MAIL_SECURE !== 'undefined') {
+    return String(process.env.MAIL_SECURE).toLowerCase() === 'true';
+  }
+  return Number(port) === 465;
+}
+
 function isMailConfigured() {
   return hasMailCredentials();
 }
@@ -58,12 +74,16 @@ async function getTransporter() {
   if (hasCredentials) {
     const mailUser = getMailUser();
     const mailPass = getMailPass();
+    const host = getMailHost();
+    const port = getMailPort();
+    const secure = getMailSecure(port);
 
     // Production: Gmail SMTP
     transporter = createSmtpTransport({
-      host: process.env.MAIL_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.MAIL_PORT) || 587,
-      secure: false,
+      host,
+      port,
+      secure,
+      requireTLS: !secure,
       auth: {
         user: mailUser,
         pass: mailPass,
@@ -92,10 +112,10 @@ async function getTransporter() {
 
 // ── Send verification email ──
 async function sendVerificationEmail(to, name, token) {
-  const t = await getTransporter();
+  let t = await getTransporter();
   const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/xac-thuc-email?token=${token}`;
 
-  const info = await t.sendMail({
+  const payload = {
     from: getMailFrom(),
     to,
     subject: '✅ Xác nhận tài khoản - goBook',
@@ -141,7 +161,27 @@ async function sendVerificationEmail(to, name, token) {
 </body>
 </html>
     `,
-  });
+  };
+
+  let info;
+  try {
+    info = await t.sendMail(payload);
+  } catch (err) {
+    const host = getMailHost();
+    const port = getMailPort();
+    if ((err?.code === 'ETIMEDOUT' || /timeout/i.test(err?.message || '')) && host === 'smtp.gmail.com' && port === 587) {
+      // Fallback for environments where STARTTLS on 587 is unstable.
+      t = createSmtpTransport({
+        host,
+        port: 465,
+        secure: true,
+        auth: { user: getMailUser(), pass: getMailPass() },
+      });
+      info = await t.sendMail(payload);
+    } else {
+      throw err;
+    }
+  }
 
   // In link preview trong console (dev mode)
   const previewUrl = nodemailer.getTestMessageUrl(info);
@@ -154,8 +194,8 @@ async function sendVerificationEmail(to, name, token) {
 
 // ── Send welcome email after verification ──
 async function sendWelcomeEmail(to, name) {
-  const t = await getTransporter();
-  await t.sendMail({
+  let t = await getTransporter();
+  const payload = {
     from: getMailFrom(),
     to,
     subject: '🎉 Chào mừng đến với goBook!',
@@ -185,7 +225,25 @@ async function sendWelcomeEmail(to, name) {
 </body>
 </html>
     `,
-  });
+  };
+
+  try {
+    await t.sendMail(payload);
+  } catch (err) {
+    const host = getMailHost();
+    const port = getMailPort();
+    if ((err?.code === 'ETIMEDOUT' || /timeout/i.test(err?.message || '')) && host === 'smtp.gmail.com' && port === 587) {
+      t = createSmtpTransport({
+        host,
+        port: 465,
+        secure: true,
+        auth: { user: getMailUser(), pass: getMailPass() },
+      });
+      await t.sendMail(payload);
+      return;
+    }
+    throw err;
+  }
 }
 
 module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter, isMailConfigured, getMailFrom };

@@ -39,7 +39,7 @@ function mapMailError(err) {
     return 'MAIL_FROM không hợp lệ với tài khoản gửi. Dùng MAIL_FROM=goBook <MAIL_USER>.';
   }
   if (code === 'ETIMEDOUT' || code === 'ESOCKET' || code === 'ECONNECTION') {
-    return 'Kết nối SMTP bị timeout. Vui lòng thử lại sau.';
+    return 'Kết nối SMTP bị timeout. Thử MAIL_PORT=465 và MAIL_SECURE=true trên Railway.';
   }
   if (code === 'ENOTFOUND') {
     return 'Không phân giải được SMTP host. Kiểm tra MAIL_HOST.';
