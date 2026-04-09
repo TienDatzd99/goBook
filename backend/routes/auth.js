@@ -8,6 +8,7 @@ const { sendVerificationEmail, sendWelcomeEmail, isMailConfigured } = require('.
 const router = express.Router();
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
 
 // ── Helper: sign JWT ──
 function signToken(user) {
@@ -28,7 +29,8 @@ function safeUser(u) {
 // ───────────────────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   const { name, email, password, phone } = req.body;
-  const emailVerificationEnabled = isMailConfigured();
+  const emailVerificationEnabled = REQUIRE_EMAIL_VERIFICATION;
+  const mailReady = isMailConfigured();
 
   // Validation: name no numbers
   if (!name || !email || !password) {
@@ -57,6 +59,10 @@ router.post('/register', async (req, res) => {
     return res.status(409).json({ error: 'Email này đã được đăng ký' });
   }
 
+  if (emailVerificationEnabled && !mailReady) {
+    return res.status(503).json({ error: 'Hệ thống email chưa sẵn sàng. Vui lòng thử lại sau.' });
+  }
+
   const verificationToken = emailVerificationEnabled ? crypto.randomBytes(32).toString('hex') : null;
   const tokenExpires = emailVerificationEnabled
     ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -64,17 +70,20 @@ router.post('/register', async (req, res) => {
   const emailVerifiedValue = emailVerificationEnabled ? 0 : 1;
 
   const hash = bcrypt.hashSync(password, 10);
-  db.prepare(`
+  const result = db.prepare(`
     INSERT INTO users (name, email, password_hash, phone, verification_token, verification_token_expires, email_verified, role)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'customer')
   `).run(name.trim(), email.toLowerCase(), hash, phone || null, verificationToken, tokenExpires, emailVerifiedValue);
 
   if (emailVerificationEnabled) {
-    // Fire-and-forget email sending so registration response is not blocked by SMTP latency.
-    sendVerificationEmail(email, name.trim(), verificationToken)
-      .catch((mailErr) => {
-        console.error('Mail send failed:', mailErr.message);
-      });
+    // In strict mode, registration succeeds only when verification email is sent.
+    try {
+      await sendVerificationEmail(email, name.trim(), verificationToken);
+    } catch (mailErr) {
+      console.error('Mail send failed:', mailErr.message);
+      db.prepare('DELETE FROM users WHERE id = ?').run(result.lastInsertRowid);
+      return res.status(500).json({ error: 'Không gửi được email xác minh. Vui lòng thử lại sau.' });
+    }
   }
 
   res.status(201).json({
@@ -221,6 +230,10 @@ router.get('/verify-email', async (req, res) => {
 router.post('/resend-verification', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
+
+  if (!REQUIRE_EMAIL_VERIFICATION) {
+    return res.status(400).json({ error: 'Xác minh email đang tắt trong cấu hình hệ thống.' });
+  }
 
   if (!isMailConfigured()) {
     return res.status(400).json({ error: 'Hệ thống email chưa cấu hình. Tài khoản mới sẽ được kích hoạt ngay khi đăng ký.' });
