@@ -2,17 +2,41 @@ const nodemailer = require('nodemailer');
 
 // ── Tạo transporter (dùng Gmail App Password hoặc Ethereal cho dev) ──
 let transporter = null;
+const MAIL_TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS || 10000);
+
+function hasMailCredentials() {
+  return Boolean(
+    process.env.MAIL_USER &&
+    process.env.MAIL_PASS &&
+    !process.env.MAIL_PASS.includes('your_app_password')
+  );
+}
+
+function isProductionRuntime() {
+  return process.env.NODE_ENV === 'production' || Boolean(process.env.RAILWAY_ENVIRONMENT);
+}
+
+function createSmtpTransport(config) {
+  return nodemailer.createTransport({
+    ...config,
+    connectionTimeout: MAIL_TIMEOUT_MS,
+    greetingTimeout: MAIL_TIMEOUT_MS,
+    socketTimeout: MAIL_TIMEOUT_MS,
+  });
+}
+
+function isMailConfigured() {
+  return hasMailCredentials();
+}
 
 async function getTransporter() {
   if (transporter) return transporter;
 
-  const hasCredentials = process.env.MAIL_USER && 
-    process.env.MAIL_PASS && 
-    !process.env.MAIL_PASS.includes('your_app_password');
+  const hasCredentials = hasMailCredentials();
 
   if (hasCredentials) {
     // Production: Gmail SMTP
-    transporter = nodemailer.createTransport({
+    transporter = createSmtpTransport({
       host: process.env.MAIL_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.MAIL_PORT) || 587,
       secure: false,
@@ -23,9 +47,13 @@ async function getTransporter() {
     });
     console.log('📧 Mail: Using Gmail SMTP');
   } else {
+    if (isProductionRuntime()) {
+      throw new Error('MAIL_NOT_CONFIGURED');
+    }
+
     // Development: Ethereal (fake SMTP – emails viewable at ethereal.email)
     const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
+    transporter = createSmtpTransport({
       host: 'smtp.ethereal.email',
       port: 587,
       secure: false,
@@ -136,4 +164,4 @@ async function sendWelcomeEmail(to, name) {
   });
 }
 
-module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter };
+module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter, isMailConfigured };

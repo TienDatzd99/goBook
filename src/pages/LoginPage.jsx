@@ -102,6 +102,9 @@ export default function LoginPage() {
         const result = await register({ name: form.name.trim(), email: form.email, password: form.password, phone: form.phone });
         if (result.needVerification) {
           setSuccessState({ type: 'verify', email: form.email });
+        } else {
+          await login(form.email, form.password);
+          navigate('/');
         }
       }
     } catch (err) {

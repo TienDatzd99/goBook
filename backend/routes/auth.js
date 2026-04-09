@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('../database');
-const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/mailer');
+const { sendVerificationEmail, sendWelcomeEmail, isMailConfigured } = require('../utils/mailer');
 const router = express.Router();
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -28,6 +28,7 @@ function safeUser(u) {
 // ───────────────────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   const { name, email, password, phone } = req.body;
+  const emailVerificationEnabled = isMailConfigured();
 
   // Validation: name no numbers
   if (!name || !email || !password) {
@@ -56,27 +57,33 @@ router.post('/register', async (req, res) => {
     return res.status(409).json({ error: 'Email này đã được đăng ký' });
   }
 
-  // Generate verification token
-  const verificationToken = crypto.randomBytes(32).toString('hex');
-  const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
+  const verificationToken = emailVerificationEnabled ? crypto.randomBytes(32).toString('hex') : null;
+  const tokenExpires = emailVerificationEnabled
+    ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    : null;
+  const emailVerifiedValue = emailVerificationEnabled ? 0 : 1;
 
   const hash = bcrypt.hashSync(password, 10);
-  const result = db.prepare(`
+  db.prepare(`
     INSERT INTO users (name, email, password_hash, phone, verification_token, verification_token_expires, email_verified, role)
-    VALUES (?, ?, ?, ?, ?, ?, 0, 'customer')
-  `).run(name.trim(), email.toLowerCase(), hash, phone || null, verificationToken, tokenExpires);
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'customer')
+  `).run(name.trim(), email.toLowerCase(), hash, phone || null, verificationToken, tokenExpires, emailVerifiedValue);
 
-  // Fire-and-forget email sending so registration response is not blocked by SMTP latency.
-  sendVerificationEmail(email, name.trim(), verificationToken)
-    .catch((mailErr) => {
-      console.error('Mail send failed:', mailErr.message);
-    });
+  if (emailVerificationEnabled) {
+    // Fire-and-forget email sending so registration response is not blocked by SMTP latency.
+    sendVerificationEmail(email, name.trim(), verificationToken)
+      .catch((mailErr) => {
+        console.error('Mail send failed:', mailErr.message);
+      });
+  }
 
   res.status(201).json({
     success: true,
-    message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.',
+    message: emailVerificationEnabled
+      ? 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.'
+      : 'Đăng ký thành công! Hệ thống email chưa cấu hình nên tài khoản được kích hoạt ngay.',
     email: email,
-    needVerification: true,
+    needVerification: emailVerificationEnabled,
   });
 });
 
@@ -94,7 +101,7 @@ router.post('/login', (req, res) => {
   if (!valid) return res.status(401).json({ error: 'Email hoặc mật khẩu không đúng' });
 
   // Check email verification (skip for admin)
-  if (user.role !== 'admin' && !user.email_verified) {
+  if (user.role !== 'admin' && !user.email_verified && isMailConfigured()) {
     return res.status(403).json({
       error: 'Tài khoản chưa xác thực email. Vui lòng kiểm tra hộp thư.',
       needVerification: true,
@@ -215,6 +222,10 @@ router.post('/resend-verification', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
 
+  if (!isMailConfigured()) {
+    return res.status(400).json({ error: 'Hệ thống email chưa cấu hình. Tài khoản mới sẽ được kích hoạt ngay khi đăng ký.' });
+  }
+
   const user = db.prepare('SELECT * FROM users WHERE email=?').get(email.toLowerCase());
   if (!user) return res.status(404).json({ error: 'Email không tồn tại' });
   if (user.email_verified) return res.status(400).json({ error: 'Email này đã được xác nhận' });
@@ -225,12 +236,12 @@ router.post('/resend-verification', async (req, res) => {
   db.prepare('UPDATE users SET verification_token=?, verification_token_expires=? WHERE id=?')
     .run(verificationToken, tokenExpires, user.id);
 
-  try {
-    await sendVerificationEmail(email, user.name, verificationToken);
-    res.json({ success: true, message: 'Email xác nhận đã được gửi lại. Vui lòng kiểm tra hộp thư.' });
-  } catch (err) {
-    res.status(500).json({ error: 'Không thể gửi email. Vui lòng thử lại sau.' });
-  }
+  sendVerificationEmail(email, user.name, verificationToken)
+    .catch((err) => {
+      console.error('Resend verification mail failed:', err.message);
+    });
+
+  res.json({ success: true, message: 'Email xác nhận đã được gửi lại. Vui lòng kiểm tra hộp thư.' });
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
