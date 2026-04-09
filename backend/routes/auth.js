@@ -66,13 +66,11 @@ router.post('/register', async (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, 0, 'customer')
   `).run(name.trim(), email.toLowerCase(), hash, phone || null, verificationToken, tokenExpires);
 
-  // Send verification email (async, don't block response)
-  try {
-    await sendVerificationEmail(email, name.trim(), verificationToken);
-  } catch (mailErr) {
-    console.error('Mail send failed:', mailErr.message);
-    // Still return success — user can request resend
-  }
+  // Fire-and-forget email sending so registration response is not blocked by SMTP latency.
+  sendVerificationEmail(email, name.trim(), verificationToken)
+    .catch((mailErr) => {
+      console.error('Mail send failed:', mailErr.message);
+    });
 
   res.status(201).json({
     success: true,

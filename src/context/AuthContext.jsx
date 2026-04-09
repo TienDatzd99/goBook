@@ -2,6 +2,50 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 
 const AuthContext = createContext(null);
 const API = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth`;
+const REQUEST_TIMEOUT_MS = 15000;
+
+async function parseJsonSafe(res) {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+async function requestJSON(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+
+    const data = await parseJsonSafe(res);
+    if (!res.ok) {
+      throw {
+        error: data.error || `HTTP ${res.status}`,
+        needVerification: data.needVerification,
+        email: data.email,
+      };
+    }
+    return data;
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw { error: 'Kết nối tới máy chủ quá lâu. Vui lòng thử lại.' };
+    }
+    if (!err?.error) {
+      throw { error: 'Không thể kết nối máy chủ. Kiểm tra VITE_API_URL và backend Railway.' };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -11,8 +55,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('mlb_token');
     if (!token) { setLoading(false); return; }
-    fetch(`${API}/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+    requestJSON('/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(d => { if (d.user) setUser(d.user); })
       .catch(() => localStorage.removeItem('mlb_token'))
       .finally(() => setLoading(false));
@@ -25,59 +68,45 @@ export function AuthProvider({ children }) {
 
   // Login with email/password
   const login = useCallback(async (email, password) => {
-    const res = await fetch(`${API}/login`, {
+    const data = await requestJSON('/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw data;
     saveSession(data.token, data.user);
     return data.user;
   }, [saveSession]);
 
   // Register with email
   const register = useCallback(async (formData) => {
-    const res = await fetch(`${API}/register`, {
+    const data = await requestJSON('/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
     });
-    const data = await res.json();
-    if (!res.ok) throw data;
     return data; // { success, message, needVerification }
   }, []);
 
   // Google OAuth login
   const loginWithGoogle = useCallback(async (credential) => {
-    const res = await fetch(`${API}/google`, {
+    const data = await requestJSON('/google', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential }),
     });
-    const data = await res.json();
-    if (!res.ok) throw data;
     saveSession(data.token, data.user);
     return data.user;
   }, [saveSession]);
 
   // Resend verification email
   const resendVerification = useCallback(async (email) => {
-    const res = await fetch(`${API}/resend-verification`, {
+    const data = await requestJSON('/resend-verification', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
-    const data = await res.json();
-    if (!res.ok) throw data;
     return data;
   }, []);
 
   // Verify email token (called from VerifyEmailPage)
   const verifyEmail = useCallback(async (token) => {
-    const res = await fetch(`${API}/verify-email?token=${token}`);
-    const data = await res.json();
-    if (!res.ok) throw data;
+    const data = await requestJSON(`/verify-email?token=${token}`);
     saveSession(data.token, data.user);
     return data;
   }, [saveSession]);
