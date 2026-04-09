@@ -114,6 +114,10 @@ router.post('/google', async (req, res) => {
   const { credential, googleUser } = req.body;
   if (!credential && !googleUser) return res.status(400).json({ error: 'Google credential is required' });
 
+  if (!process.env.JWT_SECRET) {
+    return res.status(500).json({ error: 'Server thiếu JWT_SECRET. Vui lòng cấu hình Railway Variables.' });
+  }
+
   try {
     let payload;
 
@@ -124,9 +128,7 @@ router.post('/google', async (req, res) => {
       // ID token flow: verify with Google
       const clientId = process.env.GOOGLE_CLIENT_ID;
       if (!clientId || clientId === 'your_google_client_id_here') {
-        const parts = credential.split('.');
-        payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-        console.log('⚠️  [DEV] Google token not verified (no GOOGLE_CLIENT_ID set)');
+        return res.status(500).json({ error: 'Server thiếu GOOGLE_CLIENT_ID. Vui lòng cấu hình Railway Variables.' });
       } else {
         const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: clientId });
         payload = ticket.getPayload();
@@ -160,7 +162,19 @@ router.post('/google', async (req, res) => {
 
     res.json({ token: signToken(user), user: safeUser(user), isNew: !user.password_hash });
   } catch (err) {
-    console.error('Google auth error:', err.message);
+    const detail = err?.message || 'Unknown error';
+    console.error('Google auth error:', detail);
+
+    if (/secretOrPrivateKey/i.test(detail)) {
+      return res.status(500).json({ error: 'Server thiếu JWT_SECRET. Vui lòng cấu hình Railway Variables.' });
+    }
+    if (/audience|wrong recipient|token used too late|jwt/i.test(detail)) {
+      return res.status(401).json({ error: 'GOOGLE_CLIENT_ID không khớp hoặc token Google không hợp lệ.' });
+    }
+    if (/SQLITE|database/i.test(detail)) {
+      return res.status(500).json({ error: 'Lỗi cơ sở dữ liệu khi đăng nhập Google.' });
+    }
+
     res.status(401).json({ error: 'Xác thực Google thất bại. Vui lòng thử lại.' });
   }
 });
