@@ -26,6 +26,10 @@ export default function Header() {
   const [searchFocus, setSearchFocus] = useState(false);
   const searchRef = useRef(null);
 
+  const displayName = user?.name?.trim() || 'Tài khoản';
+  const shortName = displayName.split(' ').slice(-1)[0];
+  const avatarInitial = displayName.charAt(0).toUpperCase();
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -124,11 +128,24 @@ export default function Header() {
               onMouseLeave={() => setUserMenuOpen(false)}
             >
               <Link to={user ? '/tai-khoan' : '/dang-nhap'} className="action-btn" id="account-btn">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                </svg>
+                {user ? (
+                  user.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={displayName}
+                      className="account-avatar"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="account-avatar account-avatar-fallback">{avatarInitial}</span>
+                  )
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                )}
                 <span className="action-label">
-                  {user ? user.name.split(' ').pop() : 'Tài khoản'}
+                  {user ? shortName : 'Tài khoản'}
                 </span>
               </Link>
               {userMenuOpen && !user && (
