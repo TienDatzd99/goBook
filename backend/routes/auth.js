@@ -236,12 +236,13 @@ router.post('/resend-verification', async (req, res) => {
   db.prepare('UPDATE users SET verification_token=?, verification_token_expires=? WHERE id=?')
     .run(verificationToken, tokenExpires, user.id);
 
-  sendVerificationEmail(email, user.name, verificationToken)
-    .catch((err) => {
-      console.error('Resend verification mail failed:', err.message);
-    });
-
-  res.json({ success: true, message: 'Email xác nhận đã được gửi lại. Vui lòng kiểm tra hộp thư.' });
+  try {
+    await sendVerificationEmail(email, user.name, verificationToken);
+    res.json({ success: true, message: 'Email xác nhận đã được gửi lại. Vui lòng kiểm tra hộp thư.' });
+  } catch (err) {
+    console.error('Resend verification mail failed:', err.message);
+    res.status(500).json({ error: 'Không gửi được email xác nhận. Kiểm tra MAIL_USER/MAIL_PASS và thử lại.' });
+  }
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

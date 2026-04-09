@@ -4,11 +4,22 @@ const nodemailer = require('nodemailer');
 let transporter = null;
 const MAIL_TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS || 10000);
 
+function getMailUser() {
+  return (process.env.MAIL_USER || '').trim();
+}
+
+function getMailPass() {
+  // Gmail app password is often copied with spaces every 4 chars.
+  return (process.env.MAIL_PASS || '').replace(/\s+/g, '');
+}
+
 function hasMailCredentials() {
+  const mailUser = getMailUser();
+  const mailPass = getMailPass();
   return Boolean(
-    process.env.MAIL_USER &&
-    process.env.MAIL_PASS &&
-    !process.env.MAIL_PASS.includes('your_app_password')
+    mailUser &&
+    mailPass &&
+    !mailPass.includes('your_app_password')
   );
 }
 
@@ -35,14 +46,17 @@ async function getTransporter() {
   const hasCredentials = hasMailCredentials();
 
   if (hasCredentials) {
+    const mailUser = getMailUser();
+    const mailPass = getMailPass();
+
     // Production: Gmail SMTP
     transporter = createSmtpTransport({
       host: process.env.MAIL_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.MAIL_PORT) || 587,
       secure: false,
       auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS,
+        user: mailUser,
+        pass: mailPass,
       },
     });
     console.log('📧 Mail: Using Gmail SMTP');
