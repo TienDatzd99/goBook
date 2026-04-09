@@ -49,12 +49,13 @@ Khi local:
 
 File da cau hinh san:
 - `railway.json`
+- `nixpacks.toml` (ep Nixpacks cai dat/chay tu `backend/`)
 
 ### Cach deploy
 
 1. Vao Railway, tao project moi.
 2. Chon "Deploy from GitHub repo" va chon repo `goBook`.
-3. Trong service backend, dat Root Directory la `backend` (khuyen nghi).
+3. Trong service backend, dat Root Directory la `backend` (khuyen nghi, neu giao dien Railway co tuy chon nay).
 4. Them bien moi truong theo `backend/.env.example`.
 5. Dat it nhat cac bien quan trong:
 	- `JWT_SECRET`
@@ -67,6 +68,11 @@ File da cau hinh san:
 
 - Endpoint: `/api/health`
 - URL sau deploy (vi du): `https://your-backend.railway.app/api/health`
+
+Neu gap loi `RUN npm ci` o thu muc goc khi build:
+- Dam bao Railway dang deploy commit moi nhat da co `nixpacks.toml`.
+- Redeploy va bat "Clear build cache".
+- Neu van loi, set `Root Directory = backend` trong service settings.
 
 ## 4) Deploy Frontend len Vercel
 

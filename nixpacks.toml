@@ -1,0 +1,14 @@
+[variables]
+NIXPACKS_NODE_VERSION = "20"
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["cd backend && npm ci"]
+
+[phases.build]
+cmds = ["echo No build step for backend"]
+
+[start]
+cmd = "cd backend && npm start"
