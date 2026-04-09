@@ -171,6 +171,9 @@
   text-decoration: none;
   position: relative;
 }
+.action-btn-account {
+  appearance: none;
+}
 .action-btn:hover {
   background: var(--bg-light);
   color: var(--primary);

@@ -26,6 +26,7 @@ export default function Header() {
   const [searchFocus, setSearchFocus] = useState(false);
   const searchRef = useRef(null);
   const userMenuCloseTimer = useRef(null);
+  const accountMenuRef = useRef(null);
 
   const displayName = user?.name?.trim() || 'Tài khoản';
   const shortName = displayName.split(' ').slice(-1)[0];
@@ -35,6 +36,10 @@ export default function Header() {
     function handleClickOutside(e) {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setSearchFocus(false);
+      }
+
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -62,6 +67,13 @@ export default function Header() {
     userMenuCloseTimer.current = setTimeout(() => {
       setUserMenuOpen(false);
     }, 180);
+  };
+
+  const toggleUserMenu = () => {
+    if (user) {
+      setUserMenuOpen((open) => !open);
+      return;
+    }
   };
 
   return (
@@ -140,12 +152,13 @@ export default function Header() {
             {/* Account */}
             <div
               className="action-dropdown"
+              ref={accountMenuRef}
               onMouseEnter={openUserMenu}
               onMouseLeave={closeUserMenu}
             >
-              <Link to={user ? '/tai-khoan' : '/dang-nhap'} className="action-btn" id="account-btn">
-                {user ? (
-                  user.avatar ? (
+              {user ? (
+                <button type="button" className="action-btn action-btn-account" id="account-btn" onClick={toggleUserMenu}>
+                  {user.avatar ? (
                     <img
                       src={user.avatar}
                       alt={displayName}
@@ -154,16 +167,19 @@ export default function Header() {
                     />
                   ) : (
                     <span className="account-avatar account-avatar-fallback">{avatarInitial}</span>
-                  )
-                ) : (
+                  )}
+                  <span className="action-label">
+                    {shortName}
+                  </span>
+                </button>
+              ) : (
+                <Link to="/dang-nhap" className="action-btn" id="account-btn">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                   </svg>
-                )}
-                <span className="action-label">
-                  {user ? shortName : 'Tài khoản'}
-                </span>
-              </Link>
+                  <span className="action-label">Tài khoản</span>
+                </Link>
+              )}
               {userMenuOpen && !user && (
                 <div className="user-dropdown" onMouseEnter={openUserMenu} onMouseLeave={closeUserMenu}>
                   <Link to="/dang-nhap" className="user-drop-link" id="login-dropdown">
