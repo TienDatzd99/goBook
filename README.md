@@ -49,7 +49,7 @@ Khi local:
 
 File da cau hinh san:
 - `railway.json`
-- `nixpacks.toml` (ep Nixpacks cai dat/chay tu `backend/`)
+- `nixpacks.toml` (tu dong ho tro ca 2 truong hop: root la repo hoac root la `backend/`)
 
 ### Cach deploy
 
@@ -69,10 +69,10 @@ File da cau hinh san:
 - Endpoint: `/api/health`
 - URL sau deploy (vi du): `https://your-backend.railway.app/api/health`
 
-Neu gap loi `RUN npm ci` o thu muc goc khi build:
-- Dam bao Railway dang deploy commit moi nhat da co `nixpacks.toml`.
+Neu gap loi image build / `RUN npm ci`:
+- Dam bao Railway dang deploy commit moi nhat co `railway.json` + `nixpacks.toml`.
 - Redeploy va bat "Clear build cache".
-- Neu van loi, set `Root Directory = backend` trong service settings.
+- Co the de `Root Directory` la repo hoac `backend` (cau hinh hien tai deu chay duoc).
 
 ## 4) Deploy Frontend len Vercel
 
