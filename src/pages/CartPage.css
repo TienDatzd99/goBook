@@ -1,0 +1,77 @@
+.cart-page { padding: 16px 0 48px; background: var(--bg-light); min-height: 60vh; }
+.cart-empty-page { padding: 60px 0; }
+.page-title { font-size: 24px; font-weight: 800; margin-bottom: 16px; }
+.page-title span { font-size: 16px; font-weight: 400; color: var(--text-muted); }
+.cart-freeship-notice {
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
+  color: #2e7d32;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.cart-freeship-notice strong { font-weight: 700; }
+.cart-layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+.cart-items-table {
+  background: #fff;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.cart-table-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--bg-light);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.cart-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: 16px;
+  padding: 16px 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s;
+}
+.cart-row:last-child { border-bottom: none; }
+.cart-row:hover { background: var(--bg-light); }
+.cart-product-col { display: flex; gap: 14px; align-items: center; }
+.cart-product-col img { width: 70px; height: 90px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; }
+.cart-product-name { font-size: 14px; font-weight: 600; color: var(--text-primary); text-decoration: none; }
+.cart-product-name:hover { color: var(--primary); }
+.cart-product-pub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.cart-price-col { font-size: 14px; color: var(--primary); font-weight: 600; white-space: nowrap; }
+.cart-qty-col { white-space: nowrap; }
+.cart-qty-col .qty-control { display: flex; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); }
+.cart-qty-col .qty-btn { width: 30px; height: 34px; border: none; background: var(--bg-light); font-size: 16px; cursor: pointer; transition: var(--transition); font-family: var(--font); }
+.cart-qty-col .qty-btn:hover { background: var(--primary); color: #fff; }
+.cart-qty-col .qty-display { width: 36px; text-align: center; font-size: 14px; font-weight: 600; }
+.cart-subtotal-col { font-size: 15px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.cart-remove-btn { background: none; border: none; font-size: 14px; color: var(--text-muted); cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
+.cart-remove-btn:hover { background: #ffebee; color: var(--primary); }
+
+/* Summary Box */
+.cart-summary-box { background: #fff; border-radius: var(--radius-xl); padding: 24px; box-shadow: var(--shadow-card); position: sticky; top: 140px; }
+.cart-summary-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.summary-lines { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.summary-line { display: flex; justify-content: space-between; font-size: 14px; color: var(--text-secondary); }
+.summary-line .free { color: #2e7d32; font-weight: 600; }
+.summary-line.total { padding-top: 12px; border-top: 2px solid var(--border); font-size: 15px; }
+.grand { color: var(--primary); font-size: 20px; }
+.cart-summary-box .btn { display: flex; }
+.payment-icons { display: flex; align-items: center; gap: 8px; justify-content: center; margin-top: 12px; font-size: 20px; }
+
+@media (max-width: 900px) { .cart-layout { grid-template-columns: 1fr; } }
+@media (max-width: 576px) {
+  .cart-table-head { display: none; }
+  .cart-row { grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; gap: 8px; }
+  .cart-product-col { grid-column: 1 / -1; }
+  .cart-subtotal-col { font-size: 14px; }
+}

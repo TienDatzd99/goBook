@@ -1,0 +1,133 @@
+.flash-sale {
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+  border-radius: var(--radius-xl);
+  padding: 24px 0;
+}
+.flash-sale-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.flash-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.flash-icon { font-size: 28px; animation: pulse 1.5s infinite; }
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.flash-title h2 {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--primary);
+  text-transform: uppercase;
+}
+.flash-countdown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--primary);
+  padding: 8px 16px;
+  border-radius: 30px;
+}
+.countdown-label {
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.countdown-blocks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.time-block {
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 40px;
+}
+.time-num {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.time-label {
+  color: rgba(255,255,255,0.75);
+  font-size: 9px;
+}
+.time-dot {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  animation: blink 1s infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.flash-view-all {
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px solid var(--primary);
+  padding: 6px 16px;
+  border-radius: 20px;
+  transition: var(--transition);
+  text-decoration: none;
+}
+.flash-view-all:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.flash-products {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.flash-product-wrap {
+  display: flex;
+  flex-direction: column;
+}
+.flash-product-wrap .product-card {
+  flex: 1;
+}
+.flash-progress {
+  padding: 8px 10px 10px;
+  background: #fff;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border: 1px solid var(--border);
+  border-top: none;
+}
+.flash-sold-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.flash-sold-text strong { color: var(--primary); }
+.flash-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.flash-bar-fill {
+  height: 100%;
+  background: linear-gradient(to right, var(--primary), var(--accent));
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+@media (max-width: 1024px) {
+  .flash-products { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 768px) {
+  .flash-products { grid-template-columns: repeat(2, 1fr); }
+  .flash-sale-header { flex-direction: column; align-items: flex-start; }
+}

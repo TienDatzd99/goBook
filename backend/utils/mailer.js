@@ -1,0 +1,139 @@
+const nodemailer = require('nodemailer');
+
+// ── Tạo transporter (dùng Gmail App Password hoặc Ethereal cho dev) ──
+let transporter = null;
+
+async function getTransporter() {
+  if (transporter) return transporter;
+
+  const hasCredentials = process.env.MAIL_USER && 
+    process.env.MAIL_PASS && 
+    !process.env.MAIL_PASS.includes('your_app_password');
+
+  if (hasCredentials) {
+    // Production: Gmail SMTP
+    transporter = nodemailer.createTransport({
+      host: process.env.MAIL_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.MAIL_PORT) || 587,
+      secure: false,
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+    console.log('📧 Mail: Using Gmail SMTP');
+  } else {
+    // Development: Ethereal (fake SMTP – emails viewable at ethereal.email)
+    const testAccount = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: { user: testAccount.user, pass: testAccount.pass },
+    });
+    console.log('📧 Mail: Using Ethereal (dev mode)');
+    console.log(`   Ethereal user: ${testAccount.user}`);
+  }
+
+  return transporter;
+}
+
+// ── Send verification email ──
+async function sendVerificationEmail(to, name, token) {
+  const t = await getTransporter();
+  const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/xac-thuc-email?token=${token}`;
+
+  const info = await t.sendMail({
+    from: process.env.MAIL_FROM || '"goBook" <noreply@minhlongbook.vn>',
+    to,
+    subject: '✅ Xác nhận tài khoản - goBook',
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    .card { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #d32f2f, #7b1fa2); padding: 36px 32px; text-align: center; }
+    .header h1 { color: #fff; margin: 0; font-size: 24px; }
+    .header p { color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px; }
+    .body { padding: 32px; }
+    .greeting { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; }
+    .text { color: #555; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    .btn { display: block; text-align: center; background: linear-gradient(135deg, #d32f2f, #7b1fa2); color: #fff !important; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 700; margin: 0 auto; max-width: 240px; }
+    .note { margin-top: 24px; font-size: 12px; color: #999; border-top: 1px solid #f0f0f0; padding-top: 16px; }
+    .link-alt { word-break: break-all; color: #d32f2f; font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>📚 goBook</h1>
+      <p>Ươm mầm tri thức</p>
+    </div>
+    <div class="body">
+      <div class="greeting">Xin chào ${name}! 👋</div>
+      <p class="text">
+        Cảm ơn bạn đã đăng ký tài khoản tại <strong>goBook</strong>.<br/>
+        Vui lòng nhấn nút bên dưới để xác nhận email và kích hoạt tài khoản:
+      </p>
+      <a href="${verifyUrl}" class="btn">✅ Xác nhận email</a>
+      <div class="note">
+        Link có hiệu lực trong <strong>24 giờ</strong>.<br/>
+        Nếu bạn không đăng ký tài khoản này, hãy bỏ qua email này.<br/>
+        <div class="link-alt">Hoặc copy link: ${verifyUrl}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+    `,
+  });
+
+  // In link preview trong console (dev mode)
+  const previewUrl = nodemailer.getTestMessageUrl(info);
+  if (previewUrl) {
+    console.log(`📧 [DEV] Xem email tại: ${previewUrl}`);
+  }
+
+  return { messageId: info.messageId, previewUrl };
+}
+
+// ── Send welcome email after verification ──
+async function sendWelcomeEmail(to, name) {
+  const t = await getTransporter();
+  await t.sendMail({
+    from: process.env.MAIL_FROM || '"goBook" <noreply@minhlongbook.vn>',
+    to,
+    subject: '🎉 Chào mừng đến với goBook!',
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/></head>
+<body style="font-family:sans-serif;background:#f5f5f5;padding:20px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
+    <div style="background:linear-gradient(135deg,#d32f2f,#7b1fa2);padding:36px 32px;text-align:center;">
+      <h1 style="color:#fff;margin:0;">🎉 Chào mừng!</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="font-size:18px;font-weight:700;color:#1a1a2e;">Xin chào ${name}!</p>
+      <p style="color:#555;line-height:1.6;">Tài khoản của bạn đã được <strong>xác nhận thành công</strong>. Bây giờ bạn có thể:</p>
+      <ul style="color:#555;line-height:2;">
+        <li>🛒 Mua sắm hàng ngàn đầu sách hay</li>
+        <li>❤️ Lưu sách yêu thích</li>
+        <li>📦 Theo dõi đơn hàng dễ dàng</li>
+        <li>🎟️ Nhận voucher ưu đãi độc quyền</li>
+      </ul>
+      <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display:block;text-align:center;background:linear-gradient(135deg,#d32f2f,#7b1fa2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;margin-top:16px;">
+        Bắt đầu mua sắm →
+      </a>
+    </div>
+  </div>
+</body>
+</html>
+    `,
+  });
+}
+
+module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter };

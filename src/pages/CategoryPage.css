@@ -1,0 +1,80 @@
+.category-page { padding: 16px 0 40px; background: var(--bg-light); min-height: 60vh; }
+.sidebar { position: sticky; top: 140px; }
+.sidebar-widget {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.sidebar-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-cats { display: flex; flex-direction: column; gap: 2px; }
+.sidebar-cat-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: var(--transition);
+}
+.sidebar-cat-link:hover { background: var(--bg-light); color: var(--primary); }
+.sidebar-cat-link.active { background: #fff5f5; color: var(--primary); font-weight: 600; }
+.cat-count-badge {
+  font-size: 11px;
+  background: var(--border);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.price-filter { display: flex; flex-direction: column; gap: 6px; }
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px;
+}
+.radio-label input { accent-color: var(--primary); }
+.radio-label:hover { color: var(--primary); }
+.category-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  background: #fff;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.result-count { font-size: 14px; color: var(--text-secondary); }
+.result-count strong { color: var(--text-primary); }
+.result-count em { color: var(--primary); font-style: normal; font-weight: 600; }
+.sort-dropdown-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.sort-select {
+  padding: 6px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: #fff;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.sort-select:focus { border-color: var(--primary); }
