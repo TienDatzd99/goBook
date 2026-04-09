@@ -13,6 +13,16 @@ function getMailPass() {
   return (process.env.MAIL_PASS || '').replace(/\s+/g, '');
 }
 
+function getMailFrom() {
+  const configured = (process.env.MAIL_FROM || '').trim();
+  if (configured) return configured;
+
+  const mailUser = getMailUser();
+  if (mailUser) return `goBook <${mailUser}>`;
+
+  return '"goBook" <noreply@minhlongbook.vn>';
+}
+
 function hasMailCredentials() {
   const mailUser = getMailUser();
   const mailPass = getMailPass();
@@ -86,7 +96,7 @@ async function sendVerificationEmail(to, name, token) {
   const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/xac-thuc-email?token=${token}`;
 
   const info = await t.sendMail({
-    from: process.env.MAIL_FROM || '"goBook" <noreply@minhlongbook.vn>',
+    from: getMailFrom(),
     to,
     subject: '✅ Xác nhận tài khoản - goBook',
     html: `
@@ -146,7 +156,7 @@ async function sendVerificationEmail(to, name, token) {
 async function sendWelcomeEmail(to, name) {
   const t = await getTransporter();
   await t.sendMail({
-    from: process.env.MAIL_FROM || '"goBook" <noreply@minhlongbook.vn>',
+    from: getMailFrom(),
     to,
     subject: '🎉 Chào mừng đến với goBook!',
     html: `
@@ -178,4 +188,4 @@ async function sendWelcomeEmail(to, name) {
   });
 }
 
-module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter, isMailConfigured };
+module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter, isMailConfigured, getMailFrom };

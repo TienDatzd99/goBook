@@ -24,6 +24,30 @@ function safeUser(u) {
   return { id: u.id, name: u.name, email: u.email, role: u.role, avatar: u.avatar, email_verified: u.email_verified };
 }
 
+function mapMailError(err) {
+  const responseCode = Number(err?.responseCode || 0);
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '').toLowerCase();
+
+  if (responseCode === 535 || msg.includes('invalid login') || msg.includes('bad credentials')) {
+    return 'Sai MAIL_USER hoặc MAIL_PASS (App Password).';
+  }
+  if (responseCode === 534 || msg.includes('application-specific password')) {
+    return 'Gmail yêu cầu App Password. Kiểm tra lại 2-Step Verification và tạo App Password mới.';
+  }
+  if (responseCode === 550 || responseCode === 553 || msg.includes('sender')) {
+    return 'MAIL_FROM không hợp lệ với tài khoản gửi. Dùng MAIL_FROM=goBook <MAIL_USER>.';
+  }
+  if (code === 'ETIMEDOUT' || code === 'ESOCKET' || code === 'ECONNECTION') {
+    return 'Kết nối SMTP bị timeout. Vui lòng thử lại sau.';
+  }
+  if (code === 'ENOTFOUND') {
+    return 'Không phân giải được SMTP host. Kiểm tra MAIL_HOST.';
+  }
+
+  return 'Không gửi được email xác minh. Vui lòng thử lại sau.';
+}
+
 // ───────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register
 // ───────────────────────────────────────────────────────────────────────────────
@@ -82,7 +106,7 @@ router.post('/register', async (req, res) => {
     } catch (mailErr) {
       console.error('Mail send failed:', mailErr.message);
       db.prepare('DELETE FROM users WHERE id = ?').run(result.lastInsertRowid);
-      return res.status(500).json({ error: 'Không gửi được email xác minh. Vui lòng thử lại sau.' });
+      return res.status(500).json({ error: mapMailError(mailErr) });
     }
   }
 
@@ -254,7 +278,7 @@ router.post('/resend-verification', async (req, res) => {
     res.json({ success: true, message: 'Email xác nhận đã được gửi lại. Vui lòng kiểm tra hộp thư.' });
   } catch (err) {
     console.error('Resend verification mail failed:', err.message);
-    res.status(500).json({ error: 'Không gửi được email xác nhận. Kiểm tra MAIL_USER/MAIL_PASS và thử lại.' });
+    res.status(500).json({ error: mapMailError(err) });
   }
 });
 
