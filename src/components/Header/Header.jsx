@@ -32,6 +32,19 @@ export default function Header() {
   const shortName = displayName.split(' ').slice(-1)[0];
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
+  const [menuItems, setMenuItems] = useState([]);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/settings/header_menu`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data)) {
+          setMenuItems(data);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -308,20 +321,30 @@ export default function Header() {
           </div>
 
           <div className="nav-links">
-            <Link to="/collections/mung-sinh-nhat" className="nav-link nav-link-hot">
-              🎂 Deal Sinh Nhật 18K
-            </Link>
-            <Link to="/collections/flash-sale" className="nav-link nav-link-sale">
-              ⚡ Flash Sale
-            </Link>
-            <Link to="/danh-muc/sach-moi" className="nav-link">Sách Mới</Link>
-            <Link to="/danh-muc/van-hoc" className="nav-link">Văn Học</Link>
-            <Link to="/danh-muc/ky-nang-song" className="nav-link">Kỹ Năng Sống</Link>
-            <Link to="/danh-muc/sach-thieu-nhi" className="nav-link">Thiếu Nhi</Link>
-            <Link to="/danh-muc/nuoi-day-con" className="nav-link">Nuôi Dạy Con</Link>
-            <Link to="/danh-muc/combo" className="nav-link">Combo</Link>
-            <Link to="/danh-muc/do-choi" className="nav-link">Đồ Chơi</Link>
-            <Link to="/diem-sach" className="nav-link">Điểm sách</Link>
+            {menuItems.length > 0 ? (
+              menuItems.map(item => (
+                <Link key={item.id} to={item.url} className={`nav-link ${item.highlight_class || ''}`}>
+                  {item.icon ? `${item.icon} ${item.label}` : item.label}
+                </Link>
+              ))
+            ) : (
+              <>
+                <Link to="/collections/mung-sinh-nhat" className="nav-link nav-link-hot">
+                  🎂 Deal Sinh Nhật 18K
+                </Link>
+                <Link to="/collections/flash-sale" className="nav-link nav-link-sale">
+                  ⚡ Flash Sale
+                </Link>
+                <Link to="/danh-muc/sach-moi" className="nav-link">Sách Mới</Link>
+                <Link to="/danh-muc/van-hoc" className="nav-link">Văn Học</Link>
+                <Link to="/danh-muc/ky-nang-song" className="nav-link">Kỹ Năng Sống</Link>
+                <Link to="/danh-muc/sach-thieu-nhi" className="nav-link">Thiếu Nhi</Link>
+                <Link to="/danh-muc/nuoi-day-con" className="nav-link">Nuôi Dạy Con</Link>
+                <Link to="/danh-muc/combo" className="nav-link">Combo</Link>
+                <Link to="/danh-muc/do-choi" className="nav-link">Đồ Chơi</Link>
+                <Link to="/diem-sach" className="nav-link">Điểm sách</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

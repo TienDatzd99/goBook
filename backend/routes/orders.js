@@ -129,6 +129,47 @@ router.get('/', auth, adminOnly, (req, res) => {
   res.json({ data: orders, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
 });
 
+// ── Customer: GET my orders ──
+router.get('/my-orders', auth, (req, res) => {
+  const { status } = req.query;
+  let where = ['user_id = ?'];
+  let params = [req.user.id];
+
+  if (status && status !== 'all') {
+    where.push('status = ?');
+    params.push(status);
+  }
+
+  const orders = db.prepare(`
+    SELECT * FROM orders
+    WHERE ${where.join(' AND ')}
+    ORDER BY created_at DESC
+  `).all(params);
+
+  // also fetch items for these orders
+  const orderIds = orders.map(o => o.id);
+  let itemsByOrderId = {};
+  if (orderIds.length > 0) {
+    const placeholders = orderIds.map(() => '?').join(',');
+    const items = db.prepare(`
+      SELECT oi.*, p.slug as product_slug 
+      FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id IN (${placeholders})
+    `).all(orderIds);
+    items.forEach(item => {
+      if (!itemsByOrderId[item.order_id]) itemsByOrderId[item.order_id] = [];
+      itemsByOrderId[item.order_id].push(item);
+    });
+  }
+
+  const ordersWithItems = orders.map(o => ({
+    ...o,
+    items: itemsByOrderId[o.id] || []
+  }));
+
+  res.json(ordersWithItems);
+});
+
 // GET /api/orders/:id
 router.get('/:id', (req, res) => {
   const order = db.prepare(`
@@ -290,6 +331,24 @@ router.delete('/:id', auth, adminOnly, (req, res) => {
   const result = db.prepare('DELETE FROM orders WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
   res.json({ message: 'Đã xóa đơn hàng' });
+});
+
+// PUT /api/orders/:id/customer-cancel
+router.put('/:id/customer-cancel', auth, (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+  if (order.status !== 'pending') return res.status(400).json({ error: 'Chỉ có thể hủy đơn hàng khi đang chờ xác nhận' });
+
+  // Restore stock
+  const items = db.prepare('SELECT product_id, quantity FROM order_items WHERE order_id=?').all(order.id);
+  for (const item of items) {
+    if (item.product_id) {
+      db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(item.quantity, item.product_id);
+    }
+  }
+
+  db.prepare(`UPDATE orders SET status='cancelled', updated_at=datetime('now','localtime') WHERE id=?`).run(req.params.id);
+  res.json({ success: true, message: 'Đã hủy đơn hàng' });
 });
 
 module.exports = router;

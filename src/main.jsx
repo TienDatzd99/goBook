@@ -12,7 +12,7 @@ if (!GOOGLE_CLIENT_ID) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID || 'dummy-client-id'}>
       <App />
     </GoogleOAuthProvider>
   </React.StrictMode>,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, Navigate } from 'react-router-dom';
 import { useAdminAuth } from './AdminAuthContext';
+import AIAssistant from './AIAssistant';
 import './admin.css';
 
 const NAV_ITEMS = [
@@ -12,6 +13,11 @@ const NAV_ITEMS = [
   { href: '/admin/vouchers', icon: '🎟️', label: 'Voucher' },
   { href: '/admin/banners', icon: '🖼️', label: 'Quảng Cáo' },
   { href: '/admin/blogs', icon: '✍️', label: 'Blog' },
+  { href: '/admin/layout', icon: '🎨', label: 'Giao diện' },
+  { href: '/admin/menu', icon: '🧭', label: 'Menu' },
+  { href: '/admin/campaigns', icon: '⚡', label: 'Chiến dịch' },
+  { href: '/admin/reviews', icon: '⭐', label: 'Đánh giá' },
+  { href: '/admin/complaints', icon: '⚠️', label: 'Khiếu nại' },
 ];
 
 export default function AdminLayout({ children }) {
@@ -84,6 +90,9 @@ export default function AdminLayout({ children }) {
           {children}
         </main>
       </div>
+      
+      {/* AI Assistant Widget */}
+      <AIAssistant />
     </div>
   );
 }

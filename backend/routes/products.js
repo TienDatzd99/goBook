@@ -27,9 +27,22 @@ router.get('/', (req, res) => {
   const orderBy = orderMap[sort] || 'p.created_at DESC';
 
   const sql = `
-    SELECT p.*, c.name as category_name, c.slug as category_slug
+    SELECT 
+      p.id, p.name, p.slug, p.stock, p.category_id, p.publisher, p.author, p.description, p.image, p.is_new, p.is_bestseller, p.sku, p.created_at, p.updated_at,
+      c.name as category_name, c.slug as category_slug,
+      COALESCE(camp.campaign_price, p.price) as price,
+      CASE WHEN camp.campaign_price IS NOT NULL THEN p.price ELSE p.original_price END as original_price,
+      CASE WHEN camp.campaign_price IS NOT NULL THEN camp.discount_percent ELSE p.discount END as discount,
+      CASE WHEN camp.campaign_price IS NOT NULL THEN 1 ELSE 0 END as is_flash_sale
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN (
+      SELECT product_id, MIN(campaign_price) as campaign_price, discount_percent
+      FROM campaign_items ci
+      JOIN campaigns c2 ON ci.campaign_id = c2.id
+      WHERE c2.is_active = 1
+      GROUP BY product_id
+    ) camp ON p.id = camp.product_id
     WHERE ${where.join(' AND ')}
     ORDER BY ${orderBy}
     LIMIT ? OFFSET ?
@@ -51,8 +64,22 @@ router.get('/', (req, res) => {
 // GET /api/products/:id
 router.get('/:id', (req, res) => {
   const product = db.prepare(`
-    SELECT p.*, c.name as category_name, c.slug as category_slug
-    FROM products p LEFT JOIN categories c ON p.category_id = c.id
+    SELECT 
+      p.id, p.name, p.slug, p.stock, p.category_id, p.publisher, p.author, p.description, p.image, p.is_new, p.is_bestseller, p.sku, p.created_at, p.updated_at,
+      c.name as category_name, c.slug as category_slug,
+      COALESCE(camp.campaign_price, p.price) as price,
+      CASE WHEN camp.campaign_price IS NOT NULL THEN p.price ELSE p.original_price END as original_price,
+      CASE WHEN camp.campaign_price IS NOT NULL THEN camp.discount_percent ELSE p.discount END as discount,
+      CASE WHEN camp.campaign_price IS NOT NULL THEN 1 ELSE 0 END as is_flash_sale
+    FROM products p 
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN (
+      SELECT product_id, MIN(campaign_price) as campaign_price, discount_percent
+      FROM campaign_items ci
+      JOIN campaigns c2 ON ci.campaign_id = c2.id
+      WHERE c2.is_active = 1
+      GROUP BY product_id
+    ) camp ON p.id = camp.product_id
     WHERE p.id = ? OR p.slug = ?
   `).get(req.params.id, req.params.id);
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../ProductCard/ProductCard';
 import { flashSaleProducts } from '../../data/products';
@@ -13,9 +13,19 @@ function getEndOfDay() {
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
-export default function FlashSale() {
+export default function FlashSale({ products, campaignSlug = 'flash-sale', title = 'Flash Sale' }) {
   const [endTime] = useState(() => getEndOfDay());
   const [timeLeft, setTimeLeft] = useState({ h: 0, m: 0, s: 0 });
+  const [campaignData, setCampaignData] = useState(null);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/collections/${campaignSlug}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error && data.products) setCampaignData(data.products);
+      })
+      .catch(console.error);
+  }, [campaignSlug]);
 
   useEffect(() => {
     const tick = () => {
@@ -30,13 +40,29 @@ export default function FlashSale() {
     return () => clearInterval(t);
   }, [endTime]);
 
+  const sourceProducts = campaignData || products || flashSaleProducts;
+  
+  // Use useMemo so that we don't recalculate random numbers on every 1-second tick
+  const displayProducts = useMemo(() => {
+    return sourceProducts.slice(0, 6).map(p => {
+      // If campaign_sold_count exists (even if it's 0), use it. Otherwise, use a static random number.
+      let sold = p.soldPercent;
+      if (sold === undefined) {
+        sold = p.campaign_sold_count !== undefined && p.campaign_sold_count !== null 
+          ? p.campaign_sold_count 
+          : Math.floor(Math.random() * 60) + 30;
+      }
+      return { ...p, soldPercent: sold };
+    });
+  }, [sourceProducts]);
+
   return (
     <section className="flash-sale section">
       <div className="container">
         <div className="flash-sale-header">
           <div className="flash-title">
             <span className="flash-icon" style={{ display: 'inline-flex', alignItems: 'center' }}><Zap size={28} fill="currentColor" /></span>
-            <h2>Flash Sale</h2>
+            <h2>{title}</h2>
           </div>
           <div className="flash-countdown">
             <span className="countdown-label">Kết thúc sau</span>
@@ -57,13 +83,13 @@ export default function FlashSale() {
               </div>
             </div>
           </div>
-          <Link to="/collections/flash-sale" className="flash-view-all">
+          <Link to={`/collections/${campaignSlug}`} className="flash-view-all">
             Xem tất cả →
           </Link>
         </div>
 
         <div className="flash-products">
-          {flashSaleProducts.slice(0, 6).map(product => (
+          {displayProducts.map(product => (
             <div key={product.id} className="flash-product-wrap">
               <ProductCard product={product} />
               <div className="flash-progress">

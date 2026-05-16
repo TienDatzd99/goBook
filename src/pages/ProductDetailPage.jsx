@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import ProductCard from '../components/ProductCard/ProductCard';
-import { BookOpen, Maximize, ShoppingCart } from 'lucide-react';
+import { BookOpen, Maximize, ShoppingCart, CheckCircle, User } from 'lucide-react';
 import { getProductBySlug, getRelatedProducts } from '../data/products';
 import './ProductDetailPage.css';
 
@@ -82,7 +82,32 @@ export default function ProductDetailPage() {
   const images = product?.images || (product ? [product.image] : []);
 
   // Reset active image when product changes
-  useEffect(() => { setActiveImg(0); }, [slug]);
+  useEffect(() => { 
+    setActiveImg(0); 
+    window.scrollTo(0, 0);
+  }, [slug]);
+
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  
+  useEffect(() => {
+    if (slug) {
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/reviews/product/${slug}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setReviews(data);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setReviewsLoaded(true));
+    }
+  }, [slug]);
+
+  const reviewCount = reviewsLoaded ? reviews.length : product?.reviews || 0;
+  const reviewAvg = reviewsLoaded
+    ? (reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0)
+    : product?.rating || 5;
 
   const handlePrev = useCallback(() => setActiveImg(i => (i - 1 + images.length) % images.length), [images.length]);
   const handleNext = useCallback(() => setActiveImg(i => (i + 1) % images.length), [images.length]);
@@ -183,11 +208,11 @@ export default function ProductDetailPage() {
             <div className="detail-rating-row">
               <div className="stars">
                 {[1,2,3,4,5].map(s => (
-                  <span key={s} style={{ color: s <= Math.round(product.rating) ? '#f9a825' : '#ddd', fontSize: 16 }}>★</span>
+                  <span key={s} style={{ color: s <= Math.round(reviewAvg) ? '#f9a825' : '#ddd', fontSize: 16 }}>★</span>
                 ))}
               </div>
-              <span className="detail-rating-val">{product.rating}</span>
-              <span className="detail-reviews">({product.reviews} đánh giá)</span>
+              <span className="detail-rating-val">{Number(reviewAvg).toFixed(1)}</span>
+              <span className="detail-reviews">({reviewCount} đánh giá)</span>
               {product.stock > 0 ? (
                 <span className="stock-badge in-stock">Còn hàng ({product.stock})</span>
               ) : (
@@ -273,7 +298,9 @@ export default function ProductDetailPage() {
             <button className={`tab-btn ${tab === 'desc' ? 'active' : ''}`} onClick={() => setTab('desc')} id="tab-desc">Mô tả sản phẩm</button>
             <button className={`tab-btn ${tab === 'preview' ? 'active' : ''}`} onClick={() => setTab('preview')} id="tab-preview">📖 Đọc thử</button>
             <button className={`tab-btn ${tab === 'specs' ? 'active' : ''}`} onClick={() => setTab('specs')} id="tab-specs">Thông số kỹ thuật</button>
-            <button className={`tab-btn ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')} id="tab-reviews">Đánh giá ({product.reviews})</button>
+            <button className={`tab-btn ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')} id="tab-reviews">
+              Đánh giá {reviewCount > 0 && <span style={{marginLeft: 4}}>({reviewCount})</span>}
+            </button>
           </div>
           <div className="tab-content">
             {tab === 'desc' && (
@@ -358,7 +385,7 @@ export default function ProductDetailPage() {
                   {product.author && <tr><td>Tác giả</td><td>{product.author}</td></tr>}
                   <tr><td>Danh mục</td><td>{product.category}</td></tr>
                   <tr><td>Tình trạng</td><td>{product.stock > 0 ? `Còn ${product.stock} cuốn` : 'Hết hàng'}</td></tr>
-                  <tr><td>Xếp hạng</td><td>⭐ {product.rating} / 5 ({product.reviews} đánh giá)</td></tr>
+                   <tr><td>Xếp hạng</td><td>⭐ {Number(reviewAvg).toFixed(1)} / 5 ({reviewCount} đánh giá)</td></tr>
                 </tbody>
               </table>
             )}
@@ -366,20 +393,60 @@ export default function ProductDetailPage() {
             {tab === 'reviews' && (
               <div className="reviews-section">
                 <div className="review-summary">
-                  <div className="review-avg">{product.rating}</div>
+                  <div className="review-avg">{Number(reviewAvg).toFixed(1)}</div>
                   <div>
                     <div className="stars" style={{ fontSize: 20 }}>
                       {[1,2,3,4,5].map(s => (
-                        <span key={s} style={{ color: s <= Math.round(product.rating) ? '#f9a825' : '#ddd' }}>★</span>
+                        <span key={s} style={{ color: s <= Math.round(reviewAvg) ? '#f9a825' : '#ddd' }}>★</span>
                       ))}
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{product.reviews} đánh giá</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{reviewCount} đánh giá</div>
                   </div>
                 </div>
-                <div className="review-placeholder">
-                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    Chức năng bình luận đang được phát triển...
-                  </p>
+                
+                <div className="reviews-list" style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {reviews.length === 0 ? (
+                    <div className="review-placeholder">
+                      <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Chưa có đánh giá nào cho sản phẩm này. Hãy là người đầu tiên đánh giá!
+                      </p>
+                    </div>
+                  ) : reviews.map(r => (
+                    <div key={r.id} style={{ padding: '16px 0', borderBottom: '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', flexShrink: 0 }}>
+                          {r.avatar ? <img src={r.avatar} alt="avatar" style={{width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover'}} /> : <User size={24} />}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <div style={{ fontWeight: 600, color: '#333', fontSize: 15 }}>{r.customer_name}</div>
+                            <div style={{ fontSize: 12, color: '#999' }}>{new Date(r.created_at).toLocaleDateString('vi-VN')}</div>
+                          </div>
+                          <div className="stars" style={{ marginBottom: 12 }}>
+                            {[1,2,3,4,5].map(s => (
+                              <span key={s} style={{ color: s <= r.rating ? '#f9a825' : '#eee', fontSize: 14 }}>★</span>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 14, color: '#444', lineHeight: 1.6, marginBottom: 12, whiteSpace: 'pre-line' }}>
+                            {r.comment}
+                          </div>
+
+                          {r.reply && (
+                            <div style={{ background: '#f8f9fa', padding: 16, borderRadius: 8, marginTop: 16, borderLeft: '3px solid #1976d2' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <span style={{ fontWeight: 700, color: '#1976d2', fontSize: 14 }}>goBook</span>
+                                <CheckCircle size={16} color="#1976d2" fill="#e3f2fd" />
+                                <span style={{ fontSize: 11, background: '#e3f2fd', color: '#1976d2', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>Quản trị viên</span>
+                              </div>
+                              <div style={{ fontSize: 14, color: '#555', lineHeight: 1.5 }}>
+                                {r.reply}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

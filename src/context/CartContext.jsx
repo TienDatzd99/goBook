@@ -1,9 +1,21 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gocart_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  useEffect(() => {
+    localStorage.setItem('gocart_items', JSON.stringify(items));
+  }, [items]);
+
   const [isOpen, setIsOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
@@ -29,6 +41,10 @@ export function CartProvider({ children }) {
     setItems(prev => prev.filter(i => i.id !== id));
   }, []);
 
+  const removeItems = useCallback((ids) => {
+    setItems(prev => prev.filter(i => !ids.includes(i.id)));
+  }, []);
+
   const updateQuantity = useCallback((id, quantity) => {
     if (quantity <= 0) { removeItem(id); return; }
     setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
@@ -44,9 +60,9 @@ export function CartProvider({ children }) {
 
   return (
     <CartContext.Provider value={{
-      items, addItem, removeItem, updateQuantity, clearCart,
+      items, addItem, removeItem, removeItems, updateQuantity, clearCart,
       isOpen, setIsOpen, total, count, shippingFee, grandTotal,
-      freeShipThreshold, toasts
+      freeShipThreshold, toasts, addToast
     }}>
       {children}
     </CartContext.Provider>

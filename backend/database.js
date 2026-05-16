@@ -33,6 +33,17 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
 
+  CREATE TABLE IF NOT EXISTS user_addresses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    address TEXT NOT NULL,
+    is_default INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
   CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -144,6 +155,74 @@ db.exec(`
     start_date TEXT,
     end_date TEXT,
     click_count INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS homepage_layout (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    is_visible INTEGER NOT NULL DEFAULT 1,
+    item_count INTEGER DEFAULT 10,
+    selected_items TEXT DEFAULT '[]',
+    is_manual INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    description TEXT,
+    banner_image TEXT,
+    bg_color TEXT,
+    is_active INTEGER DEFAULT 1,
+    start_date TEXT,
+    end_date TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS campaign_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    campaign_price INTEGER NOT NULL,
+    discount_percent INTEGER DEFAULT 0,
+    stock_limit INTEGER DEFAULT 0,
+    sold_count INTEGER DEFAULT 0,
+    sort_order INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL DEFAULT 5,
+    comment TEXT,
+    is_visible INTEGER DEFAULT 1,
+    reply TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS complaints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    admin_reply TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
@@ -304,10 +383,32 @@ function seedDatabase() {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   banners.forEach(b => insertBanner.run(...b));
-
   console.log('✅ Database seeded!');
 }
 
+function seedLayout() {
+  const layoutCount = db.prepare('SELECT COUNT(*) as c FROM homepage_layout').get().c;
+  if (layoutCount > 0) return;
+
+  const layouts = [
+    ['flash_sale', 'Flash Sale', 1, 1],
+    ['new_books', 'Sách Mới Lên Kệ', 2, 1],
+    ['best_sellers', 'Top Sách Bán Chạy', 3, 1],
+    ['combos', 'Combo Bán Chạy', 4, 1],
+    ['toys', 'Đồ Chơi Giáo Dục', 5, 1],
+    ['blog', 'Điểm Sách & Chia Sẻ', 6, 1],
+    ['newsletter', 'Đăng ký nhận thông tin', 7, 1]
+  ];
+  const insertLayout = db.prepare(`
+    INSERT INTO homepage_layout (section_id, name, order_index, is_visible)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(section_id) DO NOTHING
+  `);
+  layouts.forEach(l => insertLayout.run(...l));
+  console.log('✅ Homepage layout seeded!');
+}
+
 seedDatabase();
+seedLayout();
 
 module.exports = db;

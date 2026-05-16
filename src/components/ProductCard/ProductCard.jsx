@@ -30,10 +30,10 @@ export default function ProductCard({ product, horizontal = false }) {
         {product.discount > 0 && (
           <span className="product-badge-sale">-{product.discount}%</span>
         )}
-        {product.isNew && !product.discount && (
+        {(product.isNew || product.is_new === 1) && !product.discount && (
           <span className="product-badge-new">Mới</span>
         )}
-        {product.isBestseller && (
+        {(product.isBestseller || product.is_bestseller === 1) && (
           <span className="product-badge-hot">Hot</span>
         )}
         <img
@@ -81,15 +81,15 @@ export default function ProductCard({ product, horizontal = false }) {
         <div className="product-rating">
           <div className="stars">
             {[1,2,3,4,5].map(s => (
-              <span key={s} style={{ color: s <= Math.round(product.rating) ? '#f9a825' : '#ddd' }}>★</span>
+              <span key={s} style={{ color: s <= Math.round(product.rating || 5) ? '#f9a825' : '#ddd' }}>★</span>
             ))}
           </div>
-          <span className="review-count">({product.reviews})</span>
+          <span className="review-count">({product.reviews || product.review_count || 0})</span>
         </div>
         <div className="product-price-row">
           <span className="price-sale">{formatPrice(product.price)}</span>
-          {product.originalPrice > 0 && product.originalPrice > product.price && (
-            <span className="price-original-card">{formatPrice(product.originalPrice)}</span>
+          {(product.originalPrice || product.original_price) > 0 && (product.originalPrice || product.original_price) > product.price && (
+            <span className="price-original-card">{formatPrice(product.originalPrice || product.original_price)}</span>
           )}
         </div>
         <button

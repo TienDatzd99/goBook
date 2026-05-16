@@ -58,7 +58,14 @@ app.use('/api/stats', require('./routes/stats'));
 app.use('/api/vouchers', require('./routes/vouchers'));
 app.use('/api/banners', require('./routes/banners'));
 app.use('/api/payment', require('./routes/payment'));
+app.use('/api/reviews', require('./routes/reviews'));
+app.use('/api/complaints', require('./routes/complaints'));
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/customer-ai', require('./routes/customer_ai'));
 app.use('/api/search', require('./routes/search'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/campaigns', require('./routes/campaigns'));
+app.use('/api/collections', require('./routes/collections'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));

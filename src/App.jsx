@@ -8,6 +8,7 @@ import Header from './components/Header/Header';
 import Footer from './components/Footer/Footer';
 import CartDrawer from './components/CartDrawer/CartDrawer';
 import ToastContainer from './components/Toast/ToastContainer';
+import CustomerAI from './components/CustomerAI';
 
 // Customer pages
 import HomePage from './pages/HomePage';
@@ -24,6 +25,8 @@ import BlogPage from './pages/BlogPage';
 import BlogDetailPage from './pages/BlogDetailPage';
 import WishlistPage from './pages/WishlistPage';
 import NotFoundPage from './pages/NotFoundPage';
+import AccountPage from './pages/AccountPage';
+import CollectionPage from './pages/CollectionPage';
 
 // Admin
 import { AdminAuthProvider } from './admin/AdminAuthContext';
@@ -37,6 +40,11 @@ import Categories from './admin/Categories';
 import Blogs from './admin/Blogs';
 import Vouchers from './admin/Vouchers';
 import Banners from './admin/Banners';
+import Layout from './admin/Layout';
+import Campaigns from './admin/Campaigns';
+import MenuSettings from './admin/MenuSettings';
+import Reviews from './admin/Reviews';
+import Complaints from './admin/Complaints';
 
 function CustomerLayout({ children }) {
   return (
@@ -48,6 +56,7 @@ function CustomerLayout({ children }) {
       <Footer />
       <CartDrawer />
       <ToastContainer />
+      <CustomerAI />
     </>
   );
 }
@@ -69,7 +78,12 @@ export default function App() {
                 <Route path="/admin/categories" element={<AdminLayout><Categories /></AdminLayout>} />
                 <Route path="/admin/vouchers" element={<AdminLayout><Vouchers /></AdminLayout>} />
                 <Route path="/admin/banners" element={<AdminLayout><Banners /></AdminLayout>} />
+                <Route path="/admin/layout" element={<AdminLayout><Layout /></AdminLayout>} />
                 <Route path="/admin/blogs" element={<AdminLayout><Blogs /></AdminLayout>} />
+                <Route path="/admin/campaigns" element={<AdminLayout><Campaigns /></AdminLayout>} />
+                <Route path="/admin/menu" element={<AdminLayout><MenuSettings /></AdminLayout>} />
+                <Route path="/admin/reviews" element={<AdminLayout><Reviews /></AdminLayout>} />
+                <Route path="/admin/complaints" element={<AdminLayout><Complaints /></AdminLayout>} />
 
                 {/* ── Customer Auth pages (no layout) ── */}
                 <Route path="/dang-nhap" element={<LoginPage />} />
@@ -88,7 +102,8 @@ export default function App() {
                 <Route path="/diem-sach" element={<CustomerLayout><BlogPage /></CustomerLayout>} />
                 <Route path="/blog/:slug" element={<CustomerLayout><BlogDetailPage /></CustomerLayout>} />
                 <Route path="/yeu-thich" element={<CustomerLayout><WishlistPage /></CustomerLayout>} />
-                <Route path="/collections/:slug" element={<CustomerLayout><CategoryPage /></CustomerLayout>} />
+                <Route path="/tai-khoan" element={<CustomerLayout><AccountPage /></CustomerLayout>} />
+                <Route path="/collections/:slug" element={<CustomerLayout><CollectionPage /></CustomerLayout>} />
                 <Route path="*" element={<CustomerLayout><NotFoundPage /></CustomerLayout>} />
               </Routes>
             </CartProvider>

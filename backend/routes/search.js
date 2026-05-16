@@ -19,8 +19,20 @@ router.get('/suggest', (req, res) => {
   try {
     // 1. Dùng p.slug để hứng các từ khóa gõ không dấu (sach -> sach-...)
     const products = db.prepare(`
-      SELECT p.id, p.name, p.slug, p.image, p.price, p.original_price AS originalPrice, p.discount, p.author
+      SELECT 
+        p.id, p.name, p.slug, p.image, p.author,
+        COALESCE(camp.campaign_price, p.price) as price,
+        CASE WHEN camp.campaign_price IS NOT NULL THEN p.price ELSE p.original_price END as originalPrice,
+        CASE WHEN camp.campaign_price IS NOT NULL THEN camp.discount_percent ELSE p.discount END as discount,
+        CASE WHEN camp.campaign_price IS NOT NULL THEN 1 ELSE 0 END as is_flash_sale
       FROM products p
+      LEFT JOIN (
+        SELECT product_id, MIN(campaign_price) as campaign_price, discount_percent
+        FROM campaign_items ci
+        JOIN campaigns c2 ON ci.campaign_id = c2.id
+        WHERE c2.is_active = 1
+        GROUP BY product_id
+      ) camp ON p.id = camp.product_id
       WHERE p.slug LIKE ? OR p.name LIKE ? OR p.author LIKE ? OR p.publisher LIKE ?
       LIMIT 30
     `).all(`%${cleanQuery}%`, `%${query}%`, `%${query}%`, `%${query}%`);

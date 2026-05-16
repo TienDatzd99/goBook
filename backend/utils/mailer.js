@@ -64,7 +64,7 @@ function getMailSecure(port) {
 }
 
 function isMailConfigured() {
-  return hasMailCredentials();
+  return hasMailCredentials() || !isProductionRuntime();
 }
 
 function buildGmailTransportForPort(port) {
@@ -232,4 +232,38 @@ async function sendWelcomeEmail(to, name) {
   await sendWithGmailFallback(t, payload);
 }
 
-module.exports = { sendVerificationEmail, sendWelcomeEmail, getTransporter, isMailConfigured, getMailFrom };
+// ── Send Custom AI Email (For Cancellations, Approvals, etc) ──
+async function sendAICustomEmail(to, name, subject, content) {
+  let t = await getTransporter();
+  const payload = {
+    from: getMailFrom(),
+    to,
+    subject: subject,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/></head>
+<body style="font-family:sans-serif;background:#f5f5f5;padding:20px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
+    <div style="background:linear-gradient(135deg,#d32f2f,#7b1fa2);padding:24px 32px;text-align:center;">
+      <h1 style="color:#fff;margin:0;font-size:20px;">Thông báo từ goBook</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="font-size:16px;font-weight:700;color:#1a1a2e;">Xin chào ${name},</p>
+      <div style="color:#555;line-height:1.6;">${content}</div>
+      <p style="color:#777;font-size:13px;margin-top:24px;border-top:1px solid #eee;padding-top:16px;">Đây là email tự động từ hệ thống trợ lý ảo của goBook. Vui lòng không trả lời email này.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `,
+  };
+
+  const info = await sendWithGmailFallback(t, payload);
+  const previewUrl = nodemailer.getTestMessageUrl(info);
+  if (previewUrl) {
+    console.log(`📧 [DEV] Xem email AI tại: ${previewUrl}`);
+  }
+}
+
+module.exports = { sendVerificationEmail, sendWelcomeEmail, sendAICustomEmail, getTransporter, isMailConfigured, getMailFrom };

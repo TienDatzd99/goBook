@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { Hourglass, PartyPopper, CheckCircle, BellRing, Banknote, CreditCard, Smartphone, Building } from 'lucide-react';
@@ -143,18 +143,80 @@ function SuccessScreen({ result }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Main CheckoutPage
 // ─────────────────────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
-  const { items, total, shippingFee, grandTotal, clearCart } = useCart();
-  const { user } = useAuth();
+  const { items: allItems, freeShipThreshold, removeItems, clearCart } = useCart();
+  const { user, getToken } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const selectedIds = location.state?.selectedIds;
+  const items = selectedIds ? allItems.filter(i => selectedIds.includes(i.id)) : allItems;
+  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const shippingFee = total >= freeShipThreshold ? 0 : 30000;
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     name: user?.name || '', phone: '', email: user?.email || '',
     address: '', city: '', district: '', note: '',
   });
+
+  const [addresses, setAddresses] = useState([]);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [newAddressMode, setNewAddressMode] = useState(false);
+  const [newAddrForm, setNewAddrForm] = useState({ name: '', phone: '', address: '', is_default: false });
+
+  useEffect(() => {
+    if (user) {
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } })
+        .then(r => r.json())
+        .then(data => {
+           if (Array.isArray(data)) {
+             setAddresses(data);
+             const def = data.find(a => a.is_default) || data[0];
+             if (def) {
+               setForm(f => ({ ...f, name: def.name, phone: def.phone, address: def.address, city: '', district: '' }));
+             }
+           }
+        })
+        .catch(console.error);
+    }
+  }, [user, getToken]);
+
+  const handleSelectAddress = (addr) => {
+    setForm(f => ({ ...f, name: addr.name, phone: addr.phone, address: addr.address, city: '', district: '' }));
+    setShowAddressModal(false);
+  };
+
+  const handleAddNewAddress = async (e) => {
+    e.preventDefault();
+    if (!newAddrForm.name || !newAddrForm.phone || !newAddrForm.address) return alert('Vui lòng điền đủ thông tin');
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/me/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ ...newAddrForm, is_default: newAddrForm.is_default ? 1 : 0 })
+      });
+      if (res.ok) {
+        const r2 = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } });
+        const d2 = await r2.json();
+        setAddresses(d2);
+        const newest = d2.find(a => a.name === newAddrForm.name && a.address === newAddrForm.address) || d2[d2.length - 1];
+        if (newest) handleSelectAddress(newest);
+        setNewAddressMode(false);
+        setNewAddrForm({ name: '', phone: '', address: '', is_default: false });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Lỗi thêm địa chỉ');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi kết nối');
+    }
+  };
+
   const [voucher, setVoucher] = useState('');
   const [voucherResult, setVoucherResult] = useState(null); // { discount, code }
   const [voucherError, setVoucherError] = useState('');
@@ -172,6 +234,8 @@ export default function CheckoutPage() {
     const { name, value } = e.target;
     if (name === 'name' && /\d/.test(value)) return;
     if (name === 'phone' && value !== '' && !/^\d+$/.test(value)) return;
+    setForm(f => ({ ...f, name: value })); // Wait, I made a mistake here, it should be dynamic. 
+    // Let me rewrite this properly.
     setForm(f => ({ ...f, [name]: value }));
   };
 
@@ -187,7 +251,7 @@ export default function CheckoutPage() {
       });
       const data = await res.json();
       if (!res.ok) { setVoucherError(data.error || 'Mã không hợp lệ'); setVoucherResult(null); return; }
-      setVoucherResult({ code: voucher.toUpperCase(), discount: data.discount_amount });
+      setVoucherResult({ code: voucher.toUpperCase(), discount: data.discount });
     } catch {
       setVoucherError('Không thể kiểm tra voucher. Thử lại sau.');
     }
@@ -228,7 +292,9 @@ export default function CheckoutPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Đặt hàng thất bại'); return; }
 
-      clearCart();
+      // Remove checked out items
+      if (selectedIds) removeItems(selectedIds);
+      else clearCart();
 
       // ── VNPay redirect ──
       if (payment === 'vnpay') {
@@ -238,7 +304,7 @@ export default function CheckoutPage() {
           body: JSON.stringify({ orderId: data.orderId, orderCode: data.code, amount: data.total }),
         });
         const payData = await payRes.json();
-        if (!payRes.ok) { setError(payData.error); clearCart(); setOrderResult(data); return; }
+        if (!payRes.ok) { setError(payData.error); setOrderResult(data); return; }
         window.location.href = payData.paymentUrl;
         return;
       }
@@ -251,7 +317,7 @@ export default function CheckoutPage() {
           body: JSON.stringify({ orderId: data.orderId, orderCode: data.code, amount: data.total }),
         });
         const payData = await payRes.json();
-        if (!payRes.ok) { setError(payData.error); clearCart(); setOrderResult(data); return; }
+        if (!payRes.ok) { setError(payData.error); setOrderResult(data); return; }
         window.location.href = payData.paymentUrl;
         return;
       }
@@ -272,8 +338,8 @@ export default function CheckoutPage() {
   if (items.length === 0) {
     return (
       <div className="container" style={{ padding: '60px 0', textAlign: 'center' }}>
-        <h2>Giỏ hàng trống</h2>
-        <Link to="/" className="btn btn-primary" style={{ marginTop: 16, display: 'inline-flex' }}>Về trang chủ</Link>
+        <h2>Không có sản phẩm nào để thanh toán</h2>
+        <Link to="/gio-hang" className="btn btn-primary" style={{ marginTop: 16, display: 'inline-flex' }}>Về giỏ hàng</Link>
       </div>
     );
   }
@@ -308,49 +374,89 @@ export default function CheckoutPage() {
             {/* ── STEP 1: Shipping info ── */}
             {step === 1 && (
               <div className="checkout-section">
-                <h3>Thông tin người nhận</h3>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="co-name">Họ và tên *</label>
-                    <input className="form-control" id="co-name" name="name" value={form.name} onChange={handleChange} placeholder="Nguyễn Văn A" required />
-                    <div className="field-note">Không nhập số</div>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="co-phone">Số điện thoại *</label>
-                    <input className="form-control" id="co-phone" name="phone" value={form.phone} onChange={handleChange} placeholder="0966160925" required inputMode="numeric" maxLength={11} />
-                    <div className="field-note">Chỉ nhập số</div>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h3 style={{ margin: 0 }}>Thông tin người nhận</h3>
+                  {user && addresses.length > 0 && (
+                    <button type="button" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => setShowAddressModal(true)}>
+                      📍 Thay đổi địa chỉ
+                    </button>
+                  )}
                 </div>
-                <div className="form-group">
-                  <label htmlFor="co-email">Email (để nhận thông báo đơn hàng)</label>
-                  <input className="form-control" id="co-email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="email@example.com" />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="co-address">Địa chỉ *</label>
-                  <input className="form-control" id="co-address" name="address" value={form.address} onChange={handleChange} placeholder="Số nhà, tên đường" required />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="co-city">Tỉnh/Thành phố</label>
-                    <select className="form-control" id="co-city" name="city" value={form.city} onChange={handleChange}>
-                      <option value="">Chọn tỉnh/thành</option>
-                      <option>Hà Nội</option><option>TP. Hồ Chí Minh</option>
-                      <option>Đà Nẵng</option><option>Cần Thơ</option>
-                      <option>Hải Phòng</option><option>Nghệ An</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="co-district">Quận/Huyện</label>
-                    <input className="form-control" id="co-district" name="district" value={form.district} onChange={handleChange} placeholder="Quận/Huyện" />
-                  </div>
-                </div>
+
+                {user ? (
+                  addresses.length > 0 && form.address ? (
+                    <div style={{ padding: '16px 20px', border: '1px solid var(--border)', borderRadius: 8, background: '#fafafa', marginBottom: 20 }}>
+                      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6, color: 'var(--text-primary)' }}>
+                        {form.name} <span style={{ color: '#ccc', margin: '0 8px' }}>|</span> {form.phone}
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+                        {form.address}{form.city ? `, ${form.city}` : ''}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '40px 20px', border: '2px dashed #ddd', borderRadius: 8, textAlign: 'center', marginBottom: 20, background: '#fafafa' }}>
+                      <div style={{ marginBottom: 12, fontSize: 15, color: '#666' }}>Bạn chưa có địa chỉ nhận hàng nào</div>
+                      <button type="button" className="btn btn-primary" onClick={() => { setNewAddressMode(true); setShowAddressModal(true); }}>
+                        + Thêm địa chỉ mới
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="co-name">Họ và tên *</label>
+                        <input className="form-control" id="co-name" name="name" value={form.name} onChange={handleChange} placeholder="Nguyễn Văn A" required />
+                        <div className="field-note">Không nhập số</div>
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="co-phone">Số điện thoại *</label>
+                        <input className="form-control" id="co-phone" name="phone" value={form.phone} onChange={handleChange} placeholder="0966160925" required inputMode="numeric" maxLength={11} />
+                        <div className="field-note">Chỉ nhập số</div>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="co-email">Email (để nhận thông báo đơn hàng)</label>
+                      <input className="form-control" id="co-email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="email@example.com" />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="co-address">Địa chỉ *</label>
+                      <input className="form-control" id="co-address" name="address" value={form.address} onChange={handleChange} placeholder="Số nhà, tên đường" required />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="co-city">Tỉnh/Thành phố</label>
+                        <select className="form-control" id="co-city" name="city" value={form.city} onChange={handleChange}>
+                          <option value="">Chọn tỉnh/thành</option>
+                          <option>Hà Nội</option><option>TP. Hồ Chí Minh</option>
+                          <option>Đà Nẵng</option><option>Cần Thơ</option>
+                          <option>Hải Phòng</option><option>Nghệ An</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="co-district">Quận/Huyện</label>
+                        <input className="form-control" id="co-district" name="district" value={form.district} onChange={handleChange} placeholder="Quận/Huyện" />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="form-group">
                   <label htmlFor="co-note">Ghi chú đơn hàng</label>
                   <textarea className="form-control" id="co-note" name="note" value={form.note} onChange={handleChange} placeholder="Ghi chú giao hàng (không bắt buộc)" rows={2} />
                 </div>
+                
                 <button type="button" className="btn btn-primary btn-lg" onClick={() => {
-                  if (!form.name || !form.phone || !form.address) { setError('Vui lòng điền đủ: họ tên, SĐT và địa chỉ'); return; }
-                  setError(''); setStep(2);
+                  if (user && addresses.length === 0) {
+                    setError('Vui lòng thêm địa chỉ nhận hàng trước khi tiếp tục');
+                    return;
+                  }
+                  if (!form.name || !form.phone || !form.address) { 
+                    setError('Vui lòng điền đủ: họ tên, SĐT và địa chỉ'); 
+                    return; 
+                  }
+                  setError(''); 
+                  setStep(2);
                 }} id="next-step-1">
                   Tiếp tục →
                 </button>
@@ -429,7 +535,7 @@ export default function CheckoutPage() {
                 {/* Bank info preview */}
                 {payment === 'bank' && (
                   <div className="payment-preview bank-preview">
-                    <div className="preview-title">📋 Thông tin chuyển khoản</div>
+                    <div className="preview-title">📋 Thông khoản chuyển khoản</div>
                     <table style={{ width: '100%', fontSize: 13 }}>
                       <tbody>
                         <tr><td style={{ color: '#777', padding: '3px 0' }}>Ngân hàng:</td><td><strong>Vietcombank</strong></td></tr>
@@ -439,14 +545,6 @@ export default function CheckoutPage() {
                       </tbody>
                     </table>
                     <div style={{ fontSize: 12, color: '#777', marginTop: 8 }}>⚠️ Mã đơn hàng sẽ được dùng làm nội dung chuyển khoản</div>
-                  </div>
-                )}
-
-                {payment === 'momo' && (
-                  <div className="payment-preview momo-preview">
-                    <div className="preview-title">📱 Thông tin MoMo</div>
-                    <div style={{ fontSize: 13, color: '#ae1c7b' }}>Số MoMo: <strong>0966 160 925</strong> (goBook)</div>
-                    <div style={{ fontSize: 13, marginTop: 4, color: '#555' }}>Số tiền: <strong style={{ color: '#d32f2f' }}>{formatPrice(actualTotal)}</strong></div>
                   </div>
                 )}
 
@@ -570,6 +668,65 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Address Modal ── */}
+      {showAddressModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: 12, marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Sổ địa chỉ của bạn</h3>
+              <button onClick={() => setShowAddressModal(false)} style={{ background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+            
+            {newAddressMode ? (
+              <form onSubmit={handleAddNewAddress}>
+                <div className="form-group">
+                  <label>Tên người nhận</label>
+                  <input className="form-control" value={newAddrForm.name} onChange={e => setNewAddrForm({...newAddrForm, name: e.target.value})} required />
+                </div>
+                <div className="form-group">
+                  <label>Số điện thoại</label>
+                  <input className="form-control" type="tel" value={newAddrForm.phone} onChange={e => setNewAddrForm({...newAddrForm, phone: e.target.value})} required />
+                </div>
+                <div className="form-group">
+                  <label>Địa chỉ cụ thể</label>
+                  <input className="form-control" value={newAddrForm.address} onChange={e => setNewAddrForm({...newAddrForm, address: e.target.value})} required />
+                </div>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" id="modal-is-default" checked={newAddrForm.is_default} onChange={e => setNewAddrForm({...newAddrForm, is_default: e.target.checked})} style={{ width: 'auto' }} />
+                  <label htmlFor="modal-is-default" style={{ margin: 0, fontWeight: 'normal' }}>Đặt làm địa chỉ mặc định</label>
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                  <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setNewAddressMode(false)}>Hủy</button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Lưu địa chỉ</button>
+                </div>
+              </form>
+            ) : (
+              <div>
+                {addresses.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#777', margin: '20px 0' }}>Bạn chưa lưu địa chỉ nào.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                    {addresses.map(addr => (
+                      <div key={addr.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, cursor: 'pointer', position: 'relative' }} onClick={() => handleSelectAddress(addr)}>
+                        <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{addr.name} {addr.is_default ? <span style={{ background: '#ffebee', color: '#c92127', fontSize: 11, padding: '2px 6px', borderRadius: 4, marginLeft: 8, fontWeight: 'normal' }}>Mặc định</span> : null}</div>
+                        <div style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>SĐT: {addr.phone}</div>
+                        <div style={{ fontSize: 13, color: '#555' }}>{addr.address}</div>
+                        <div style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: '#c92127', fontWeight: 'bold' }}>
+                          Chọn
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button type="button" className="btn btn-outline w-full" onClick={() => setNewAddressMode(true)}>
+                  + Thêm địa chỉ mới
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -65,4 +65,84 @@ router.delete('/:id', auth, adminOnly, (req, res) => {
   res.json({ message: 'Đã xóa người dùng' });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOMER ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PUT /api/users/me - Update profile
+router.put('/me', auth, (req, res) => {
+  const { name, phone } = req.body;
+  if (!name) return res.status(400).json({ error: 'Tên không được để trống' });
+  
+  db.prepare(`UPDATE users SET name=?, phone=?, updated_at=datetime('now','localtime') WHERE id=?`)
+    .run(name, phone || '', req.user.id);
+  
+  res.json({ message: 'Cập nhật thông tin thành công' });
+});
+
+// GET /api/users/me/addresses
+router.get('/me/addresses', auth, (req, res) => {
+  const addresses = db.prepare('SELECT * FROM user_addresses WHERE user_id=? ORDER BY is_default DESC, created_at DESC').all(req.user.id);
+  res.json(addresses);
+});
+
+// POST /api/users/me/addresses
+router.post('/me/addresses', auth, (req, res) => {
+  const { name, phone, address, is_default } = req.body;
+  if (!name || !phone || !address) return res.status(400).json({ error: 'Vui lòng điền đủ thông tin' });
+
+  // If this is the first address or set as default, we might need to unset others
+  const currentCount = db.prepare('SELECT COUNT(*) as c FROM user_addresses WHERE user_id=?').get(req.user.id).c;
+  const setAsDefault = (is_default || currentCount === 0) ? 1 : 0;
+
+  if (setAsDefault) {
+    db.prepare('UPDATE user_addresses SET is_default=0 WHERE user_id=?').run(req.user.id);
+  }
+
+  const result = db.prepare(`
+    INSERT INTO user_addresses (user_id, name, phone, address, is_default)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(req.user.id, name, phone, address, setAsDefault);
+
+  res.status(201).json({ id: result.lastInsertRowid, message: 'Thêm địa chỉ thành công' });
+});
+
+// PUT /api/users/me/addresses/:id
+router.put('/me/addresses/:id', auth, (req, res) => {
+  const { name, phone, address, is_default } = req.body;
+  
+  // verify ownership
+  const addr = db.prepare('SELECT id FROM user_addresses WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  if (!addr) return res.status(404).json({ error: 'Không tìm thấy địa chỉ' });
+
+  if (is_default) {
+    db.prepare('UPDATE user_addresses SET is_default=0 WHERE user_id=?').run(req.user.id);
+  }
+
+  db.prepare(`
+    UPDATE user_addresses 
+    SET name=?, phone=?, address=?, is_default=?, updated_at=datetime('now','localtime') 
+    WHERE id=?
+  `).run(name, phone, address, is_default ? 1 : 0, req.params.id);
+
+  res.json({ message: 'Cập nhật địa chỉ thành công' });
+});
+
+// DELETE /api/users/me/addresses/:id
+router.delete('/me/addresses/:id', auth, (req, res) => {
+  const result = db.prepare('DELETE FROM user_addresses WHERE id=? AND user_id=?').run(req.params.id, req.user.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Không tìm thấy địa chỉ' });
+  
+  // if we deleted the default address, make the most recent one default
+  const remaining = db.prepare('SELECT id FROM user_addresses WHERE user_id=? AND is_default=1').get(req.user.id);
+  if (!remaining) {
+    const latest = db.prepare('SELECT id FROM user_addresses WHERE user_id=? ORDER BY created_at DESC LIMIT 1').get(req.user.id);
+    if (latest) {
+      db.prepare('UPDATE user_addresses SET is_default=1 WHERE id=?').run(latest.id);
+    }
+  }
+
+  res.json({ message: 'Đã xóa địa chỉ' });
+});
+
 module.exports = router;
