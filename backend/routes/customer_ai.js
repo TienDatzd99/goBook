@@ -10,7 +10,11 @@ try {
   }
 } catch (e) {
   console.error("Failed to initialize Gemini:", e.message);
+  // capture init error for runtime diagnostics (safe: do not log the key)
+  var genAIInitError = e && e.message ? String(e.message) : String(e);
 }
+
+if (typeof genAIInitError === 'undefined') genAIInitError = null;
 
 // ─────────────────────────────────────────────────────────────
 // SYSTEM INSTRUCTION
@@ -177,6 +181,19 @@ router.post('/chat', async (req, res) => {
   } catch (error) {
     console.error("Customer Gemini Error:", error);
     res.status(500).json({ error: 'Lỗi hệ thống: ' + error.message });
+  }
+});
+
+// Diagnostic status endpoint (safe) - does not reveal keys
+router.get('/status', (req, res) => {
+  try {
+    return res.json({
+      geminiEnvPresent: Boolean(process.env.GEMINI_API_KEY),
+      genAIInitialized: Boolean(genAI),
+      initError: genAIInitError ? genAIInitError : null
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'failed' });
   }
 });
 
