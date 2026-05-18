@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import './admin.css';
+import './Admin.css';
 
 export default function MenuSettings() {
   const [menuItems, setMenuItems] = useState([]);

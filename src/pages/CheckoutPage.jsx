@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { Hourglass, PartyPopper, CheckCircle, BellRing, Banknote, CreditCard, Smartphone, Building } from 'lucide-react';
+import { Hourglass, PartyPopper, CheckCircle, BellRing, Banknote, CreditCard, Smartphone, Building, QrCode } from 'lucide-react';
 import './CheckoutPage.css';
 
 function formatPrice(n) { return Number(n).toLocaleString('vi-VN') + '₫'; }
@@ -22,8 +22,8 @@ function BankInfo({ total, orderCode }) {
       <div className="bank-info-table">
         {[
           { label: 'Ngân hàng', value: 'Vietcombank' },
-          { label: 'Số tài khoản', value: '1234 5678 9012', copyKey: 'acc' },
-          { label: 'Chủ tài khoản', value: 'GOBOOK STORE' },
+          { label: 'Số tài khoản', value: '1054599581', copyKey: 'acc' },
+          { label: 'Chủ tài khoản', value: 'LE TIEN DAT' },
           { label: 'Số tiền', value: formatPrice(total), copyKey: 'amt', highlight: true },
           { label: 'Nội dung CK', value: orderCode, copyKey: 'content', highlight: true },
         ].map(row => (
@@ -71,11 +71,37 @@ function MomoInfo({ total, orderCode }) {
   );
 }
 
+// ── VietQR info component ──
+function VietqrInfo({ total, orderCode }) {
+  const qrUrl = `https://img.vietqr.io/image/vietcombank-1054599581-compact2.png?amount=${total}&addInfo=${orderCode}&accountName=LE%20TIEN%20DAT`;
+  return (
+    <div className="vietqr-info-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', padding: 24, borderRadius: 12, border: '1px solid #ddd', marginTop: 20 }}>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: '#0288d1' }}>Quét mã QR để thanh toán</div>
+      <img src={qrUrl} alt="VietQR" style={{ width: 250, height: 250, objectFit: 'contain', marginBottom: 16, border: '1px solid #eee', borderRadius: 8, padding: 8 }} />
+      <div style={{ fontSize: 14, color: '#555', textAlign: 'center', marginBottom: 16 }}>
+        Sử dụng ứng dụng ngân hàng hoặc ví điện tử để quét mã.<br/>
+        Hệ thống sẽ <strong>tự động xác nhận</strong> đơn hàng khi nhận được tiền.
+      </div>
+      <div style={{ width: '100%', maxWidth: 300 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed #eee' }}>
+          <span style={{ color: '#777' }}>Số tiền:</span>
+          <strong style={{ color: '#d32f2f' }}>{formatPrice(total)}</strong>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+          <span style={{ color: '#777' }}>Nội dung:</span>
+          <strong>{orderCode}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Success screen ──
 function SuccessScreen({ result }) {
   const isCOD = result.payment_method === 'cod';
   const isBank = result.payment_method === 'bank';
   const isMomo = result.payment_method === 'momo';
+  const isVietqr = result.payment_method === 'vietqr';
 
   return (
     <div className="checkout-success">
@@ -125,8 +151,21 @@ function SuccessScreen({ result }) {
           </div>
         )}
 
+        {isVietqr && (
+          <div className="status-notice" style={{ background: '#e1f5fe', color: '#01579b', border: '1px solid #b3e5fc', padding: '12px 16px', borderRadius: 8, display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', marginTop: 16 }}>
+            <div className="notice-icon" style={{ marginTop: 2 }}><CheckCircle size={20} color="#0288d1" /></div>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Đơn hàng đã được xác nhận!</div>
+              <div style={{ fontSize: 13, color: '#0277bd' }}>
+                Vui lòng quét mã VietQR bên dưới để hoàn tất thanh toán.
+              </div>
+            </div>
+          </div>
+        )}
+
         {isBank && <BankInfo total={result.total} orderCode={result.code} />}
         {isMomo && <MomoInfo total={result.total} orderCode={result.code} />}
+        {isVietqr && <VietqrInfo total={result.total} orderCode={result.code} />}
 
         <div className="success-summary">
           <div className="summary-line"><span>Tổng thanh toán</span><strong className="grand">{formatPrice(result.total)}</strong></div>
@@ -322,7 +361,7 @@ export default function CheckoutPage() {
         return;
       }
 
-      // ── COD / bank: show success screen ──
+      // ── COD / bank / vietqr: show success screen ──
       setOrderResult(data);
     } catch {
       setError('Lỗi kết nối. Vui lòng thử lại.');
@@ -344,7 +383,7 @@ export default function CheckoutPage() {
     );
   }
 
-  const paymentLabel = { cod: 'Thanh toán khi nhận hàng (COD)', bank: 'Chuyển khoản ngân hàng', momo: 'Ví MoMo' };
+  const paymentLabel = { cod: 'Thanh toán khi nhận hàng (COD)', bank: 'Chuyển khoản ngân hàng', momo: 'Ví MoMo', vietqr: 'Thanh toán qua VietQR' };
 
   return (
     <div className="checkout-page">
@@ -487,6 +526,14 @@ export default function CheckoutPage() {
                       badgeClass: 'badge-ok',
                     },
                     {
+                      id: 'vietqr',
+                      icon: <QrCode size={24} color="#0288d1" />,
+                      label: 'Thanh toán qua VietQR',
+                      desc: 'Quét mã QR bằng ứng dụng ngân hàng',
+                      badge: 'Xác nhận tự động',
+                      badgeClass: 'badge-ok',
+                    },
+                    {
                       id: 'momo',
                       icon: <Smartphone size={24} color="#d81b60" />,
                       label: 'Ví MoMo',
@@ -498,7 +545,7 @@ export default function CheckoutPage() {
                       id: 'bank',
                       icon: <Building size={24} color="#00897b" />,
                       label: 'Chuyển khoản ngân hàng',
-                      desc: 'Vietcombank – 1234 5678 9012 – GOBOOK STORE',
+                      desc: 'Vietcombank – 1054599581 – LE TIEN DAT',
                       badge: 'Xác nhận ngay',
                       badgeClass: 'badge-ok',
                     },
@@ -532,6 +579,14 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
+                {/* VietQR notice */}
+                {payment === 'vietqr' && (
+                  <div className="payment-preview" style={{ background: '#e1f5fe', border: '1.5px solid #81d4fa' }}>
+                    <div className="preview-title" style={{ color: '#01579b' }}>📷 Thanh toán qua VietQR</div>
+                    <div style={{ fontSize: 13, color: '#0277bd' }}>Mã VietQR sẽ được hiển thị ngay sau khi bạn đặt hàng. Bạn chỉ cần dùng ứng dụng ngân hàng quét mã để thanh toán nhanh chóng.</div>
+                  </div>
+                )}
+
                 {/* Bank info preview */}
                 {payment === 'bank' && (
                   <div className="payment-preview bank-preview">
@@ -539,8 +594,8 @@ export default function CheckoutPage() {
                     <table style={{ width: '100%', fontSize: 13 }}>
                       <tbody>
                         <tr><td style={{ color: '#777', padding: '3px 0' }}>Ngân hàng:</td><td><strong>Vietcombank</strong></td></tr>
-                        <tr><td style={{ color: '#777' }}>Số TK:</td><td><strong>1234 5678 9012</strong></td></tr>
-                        <tr><td style={{ color: '#777' }}>Chủ TK:</td><td><strong>GOBOOK STORE</strong></td></tr>
+                        <tr><td style={{ color: '#777' }}>Số TK:</td><td><strong>1054599581</strong></td></tr>
+                        <tr><td style={{ color: '#777' }}>Chủ TK:</td><td><strong>LE TIEN DAT</strong></td></tr>
                         <tr><td style={{ color: '#777' }}>Số tiền:</td><td><strong style={{ color: '#d32f2f' }}>{formatPrice(actualTotal)}</strong></td></tr>
                       </tbody>
                     </table>
@@ -566,7 +621,7 @@ export default function CheckoutPage() {
                   <div className="confirm-row"><span>Địa chỉ:</span><strong>{form.address}{form.city ? `, ${form.city}` : ''}</strong></div>
                   <div className="confirm-row"><span>Thanh toán:</span>
                     <strong className={`pay-method-tag ${payment}`}>
-                      {payment === 'cod' ? '💰 COD' : payment === 'bank' ? '🏦 Chuyển khoản' : payment === 'vnpay' ? '💳 VNPay' : '📱 MoMo'}
+                      {payment === 'cod' ? '💰 COD' : payment === 'bank' ? '🏦 Chuyển khoản' : payment === 'vnpay' ? '💳 VNPay' : payment === 'momo' ? '📱 MoMo' : '📷 VietQR'}
                     </strong>
                   </div>
                 </div>
@@ -582,8 +637,8 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* VNPay / MoMo / Bank auto-confirm notice */}
-                {(payment === 'bank' || payment === 'momo' || payment === 'vnpay') && (
+                {/* VNPay / MoMo / Bank / VietQR auto-confirm notice */}
+                {(payment === 'bank' || payment === 'momo' || payment === 'vnpay' || payment === 'vietqr') && (
                   <div className="confirm-notice auto">
                     <span>✅</span>
                     <div>
@@ -593,7 +648,8 @@ export default function CheckoutPage() {
                       <span style={{ fontSize: 12 }}>
                         {payment === 'bank' ? 'Thông tin chuyển khoản sẽ hiển thị sau khi đặt hàng.'
                           : payment === 'vnpay' ? 'Hỗ trợ ATM, Visa, MasterCard, QR Code.'
-                          : 'Bạn sẽ được chuyển sang trang MoMo để thanh toán.'}
+                          : payment === 'momo' ? 'Bạn sẽ được chuyển sang trang MoMo để thanh toán.'
+                          : 'Mã QR thanh toán sẽ hiển thị ở bước tiếp theo.'}
                       </span>
                     </div>
                   </div>
@@ -660,7 +716,7 @@ export default function CheckoutPage() {
                 ⏳ COD: Admin sẽ xác nhận đơn trước khi giao
               </div>
             )}
-            {(payment === 'bank' || payment === 'momo') && (
+            {(payment === 'bank' || payment === 'momo' || payment === 'vietqr') && (
               <div className="sidebar-payment-note confirm-note">
                 ✅ Đơn xác nhận ngay — thanh toán sau
               </div>

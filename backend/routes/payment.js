@@ -261,4 +261,48 @@ router.get('/status/:orderCode', (req, res) => {
   res.json(order);
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ██████████  VIETQR WEBHOOK  ██████████
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/payment/vietqr/webhook
+router.post('/vietqr/webhook', (req, res) => {
+  try {
+    const data = req.body;
+    console.log('VietQR Webhook received:', data);
+    
+    let transactions = [];
+    if (Array.isArray(data.data)) transactions = data.data;
+    else if (data.data) transactions = [data.data];
+    else transactions = Array.isArray(data) ? data : [data];
+
+    let successCount = 0;
+    
+    for (const tx of transactions) {
+      const description = tx.description || tx.content || tx.thuong_vu || '';
+      const amount = tx.amount || tx.sotien || 0;
+      
+      if (!description) continue;
+      
+      const match = description.match(/MLB\d{8}/);
+      if (match) {
+        const orderCode = match[0];
+        const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
+        
+        if (order && order.status !== 'confirmed') {
+          if (amount >= order.total - 1000) {
+            db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE code=?`).run(orderCode);
+            console.log(`✅ [VietQR Webhook] Confirmed: ${orderCode}`);
+            successCount++;
+          }
+        }
+      }
+    }
+    
+    res.json({ success: true, message: 'Webhook processed', count: successCount });
+  } catch (err) {
+    console.error('VietQR webhook error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from './api';
-import './admin.css';
+import './Admin.css';
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([]);

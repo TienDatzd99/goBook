@@ -29,8 +29,8 @@ async function sendOrderEmail(order, items, type) {
       <div style="font-weight:700;font-size:15px;color:#1565c0;margin-bottom:10px;">🏦 Thông tin chuyển khoản</div>
       <table style="width:100%;font-size:14px;">
         <tr><td style="color:#777;padding:3px 0;">Ngân hàng:</td><td style="font-weight:600;">Vietcombank</td></tr>
-        <tr><td style="color:#777;padding:3px 0;">Số tài khoản:</td><td style="font-weight:600;letter-spacing:1px;">1234 5678 9012</td></tr>
-        <tr><td style="color:#777;padding:3px 0;">Tên chủ TK:</td><td style="font-weight:600;">GOBOOK STORE</td></tr>
+        <tr><td style="color:#777;padding:3px 0;">Số tài khoản:</td><td style="font-weight:600;letter-spacing:1px;">1054599581</td></tr>
+        <tr><td style="color:#777;padding:3px 0;">Tên chủ TK:</td><td style="font-weight:600;">LE TIEN DAT</td></tr>
         <tr><td style="color:#777;padding:3px 0;">Số tiền:</td><td style="font-weight:800;color:#d32f2f;font-size:16px;">${fmt(order.total)}</td></tr>
         <tr><td style="color:#777;padding:3px 0;">Nội dung CK:</td><td style="font-weight:700;color:#1565c0;">${order.code}</td></tr>
       </table>
@@ -41,6 +41,7 @@ async function sendOrderEmail(order, items, type) {
     cod_customer: `📦 Đặt hàng thành công - Chờ xác nhận | ${order.code}`,
     bank_customer: `✅ Đơn hàng đã xác nhận - Chờ thanh toán | ${order.code}`,
     momo_customer: `✅ Đơn hàng đã xác nhận | ${order.code}`,
+    vietqr_customer: `✅ Đơn hàng đã xác nhận - Thanh toán VietQR | ${order.code}`,
     cod_admin: `🔔 Đơn hàng mới cần xác nhận: ${order.code}`,
     confirmed_customer: `✅ Đơn hàng đã được xác nhận! | ${order.code}`,
   };
@@ -59,6 +60,10 @@ async function sendOrderEmail(order, items, type) {
     momo_customer: `
       <div style="font-size:16px;color:#ae1c7b;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được xác nhận!</div>
       <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được xác nhận. Vui lòng thanh toán qua MoMo số <strong>0966160925</strong> (goBook), số tiền: <strong style="color:#d32f2f;">${fmt(order.total)}</strong>, nội dung: <strong>${order.code}</strong>.</p>
+    `,
+    vietqr_customer: `
+      <div style="font-size:16px;color:#0288d1;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được xác nhận!</div>
+      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được xác nhận. Vui lòng quét mã VietQR trên website hoặc chuyển khoản vào tài khoản Vietcombank (1054599581 - LE TIEN DAT) với nội dung: <strong>${order.code}</strong>. Hệ thống sẽ tự động xác nhận sau khi nhận được thanh toán.</p>
     `,
     cod_admin: `
       <p>Đơn hàng <strong>${order.code}</strong> mới cần xác nhận (COD):</p>
@@ -205,14 +210,14 @@ router.post('/', async (req, res) => {
   if (!/^\d+$/.test(phone)) return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
 
   const method = payment_method || 'cod';
-  const validMethods = ['cod', 'bank', 'momo', 'vnpay'];
+  const validMethods = ['cod', 'bank', 'momo', 'vnpay', 'vietqr'];
   if (!validMethods.includes(method)) return res.status(400).json({ error: 'Phương thức thanh toán không hợp lệ' });
 
   // Determine initial status
   // COD   → 'pending' (đợi admin xác nhận)
-  // bank  → 'confirmed' (tự động)
+  // bank / vietqr → 'confirmed' (tự động)
   // momo / vnpay → 'pending' (xác nhận sau khi callback thanh toán thành công)
-  const initialStatus = method === 'cod' ? 'pending' : method === 'bank' ? 'confirmed' : 'pending';
+  const initialStatus = method === 'cod' ? 'pending' : (method === 'bank' || method === 'vietqr') ? 'confirmed' : 'pending';
 
   let subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   let discountAmount = 0;
@@ -282,6 +287,9 @@ router.post('/', async (req, res) => {
   } else if (method === 'momo') {
     // Customer: confirmed + momo info
     if (email) emailPromises.push(sendOrderEmail(order, orderItems, 'momo_customer'));
+  } else if (method === 'vietqr') {
+    // Customer: confirmed + vietqr info
+    if (email) emailPromises.push(sendOrderEmail(order, orderItems, 'vietqr_customer'));
   }
 
   Promise.allSettled(emailPromises).then(results =>
