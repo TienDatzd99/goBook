@@ -533,10 +533,6 @@ export default function CheckoutPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Đặt hàng thất bại'); return; }
 
-      // Remove checked out items
-      if (selectedIds) removeItems(selectedIds);
-      else clearCart();
-
       data.snapshot_items = items;
       data.shipping_fee = actualShipping;
       data.subtotal = total;
@@ -574,6 +570,10 @@ export default function CheckoutPage() {
       }
 
       setOrderResult(data);
+
+      // Remove checked out items after we set orderResult so UI can still show snapshot_items
+      if (selectedIds) removeItems(selectedIds);
+      else clearCart();
     } catch {
       setError('Lỗi kết nối. Vui lòng thử lại.');
     } finally {
