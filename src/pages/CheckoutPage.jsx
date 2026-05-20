@@ -9,6 +9,12 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https:
 
 function formatPrice(n) { return Number(n).toLocaleString('vi-VN') + '₫'; }
 
+function buildVietQrUrl(orderCode, amount) {
+  const addInfo = encodeURIComponent(orderCode || '');
+  const accountName = encodeURIComponent('LE TIEN DAT');
+  return `https://img.vietqr.io/image/vietcombank-1054599581-compact2.png?amount=${Math.max(0, Number(amount) || 0)}&addInfo=${addInfo}&accountName=${accountName}`;
+}
+
 // ── Success screen ──
 function SuccessScreen({ result }) {
   const isCOD = result.payment_method === 'cod';
@@ -529,8 +535,12 @@ export default function CheckoutPage() {
           data.paymentLinkId = payosData.paymentLinkId || null;
           data.payment_status = 'unpaid';
           data.status = 'pending';
+          if (!data.payosQrCode && !data.payosCheckoutUrl) {
+            data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
+          }
         } else {
-          data.payosError = payosData.error || 'Không tạo được link PayOS';
+          data.payosError = payosData.error || (payosRes.status === 404 ? 'PayOS endpoint chưa sẵn sàng, dùng QR dự phòng' : 'Không tạo được link PayOS');
+          data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
         }
       }
 
