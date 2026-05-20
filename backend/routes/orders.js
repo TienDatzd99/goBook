@@ -257,6 +257,7 @@ router.post('/', async (req, res) => {
   );
 
   const orderId = orderResult.lastInsertRowid;
+  console.log(`📝 [Order] Created: ${code} (ID=${orderId})`);
   const insertItem = db.prepare(
     `INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity, subtotal) VALUES (?,?,?,?,?,?,?)`
   );
@@ -297,6 +298,9 @@ router.post('/', async (req, res) => {
   Promise.allSettled(emailPromises).then(results =>
     results.forEach((r, i) => r.status === 'rejected' && console.error(`Email ${i} failed:`, r.reason?.message))
   );
+
+  const savedOrder = db.prepare('SELECT * FROM orders WHERE code=?').get(code);
+  console.log(`✅ [Order] Response sending: ${code}, DB has order:`, !!savedOrder);
 
   res.status(201).json({
     success: true,
