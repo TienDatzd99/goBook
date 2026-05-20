@@ -109,7 +109,7 @@ export default function PaymentReturnPage() {
             Đơn hàng đã được xác nhận và đang được chuẩn bị giao đến bạn.
           </p>
           <div className="return-provider">
-            {data?.provider === 'vnpay' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua VNPay</span> : data?.provider === 'payos' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua PayOS VietQR</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Smartphone size={18} /> Thanh toán qua MoMo</span>}
+            {data?.provider === 'vnpay' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua VNPay</span> : data?.provider === 'payos' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua PayOS</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Smartphone size={18} /> Thanh toán qua MoMo</span>}
           </div>
           <div className="return-actions">
             <Link to="/tra-cuu-don-hang" className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Search size={18} /> Theo dõi đơn hàng</Link>

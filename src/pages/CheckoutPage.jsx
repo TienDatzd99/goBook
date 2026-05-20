@@ -199,7 +199,7 @@ function QrPaymentScreen({ result }) {
   const payosQrCode = result.payosQrCode || result.qrCode || null;
   const hasPayOSLink = Boolean(payosCheckoutUrl || payosQrCode);
   const fallbackQrUrl = buildVietQrUrl(result.code, result.total);
-  const displayedQrUrl = payosQrCode || fallbackQrUrl;
+  const displayedQrUrl = payosQrCode || (!hasPayOSLink ? fallbackQrUrl : null);
 
   const [paid, setPaid] = useState(isPaid);
 
@@ -224,7 +224,7 @@ function QrPaymentScreen({ result }) {
 
   const bankInfo = {
     accountName: 'LE TIEN DAT',
-    bankName: 'PayOS VietQR',
+    bankName: 'Chuyển khoản dự phòng',
     accountNumber: '1054599581',
     amount: result.total,
     content: result.code,
@@ -248,7 +248,7 @@ function QrPaymentScreen({ result }) {
             </div>
 
             <div className="checkout-block">
-              <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 12 }}>Thanh toán qua QR của PayOS</h3>
+              <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 12 }}>{hasPayOSLink ? 'Thanh toán qua PayOS' : 'Thanh toán qua QR dự phòng'}</h3>
               <div style={{ border: '1px solid #e0e0e0', borderRadius: 12, padding: 16, background: '#fffdf5' }}>
                 {result.payosError && (
                   <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: '#fff1f0', color: '#b71c1c', fontSize: 13, fontWeight: 600 }}>
@@ -256,21 +256,33 @@ function QrPaymentScreen({ result }) {
                   </div>
                 )}
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 16, lineHeight: 1.5 }}>
-                  Mở app ngân hàng và quét mã bên dưới. Đơn hàng sẽ tự chuyển sang đã thanh toán sau khi PayOS xác nhận giao dịch.
+                  {hasPayOSLink
+                    ? 'Mở trang PayOS hoặc quét mã QR PayOS bên dưới. Đơn hàng sẽ tự chuyển sang đã thanh toán sau khi PayOS xác nhận giao dịch.'
+                    : 'Mở app ngân hàng và quét mã QR dự phòng bên dưới. Đơn hàng sẽ tự chuyển sang đã thanh toán sau khi hệ thống xác nhận giao dịch.'}
                 </div>
-                <table className="payment-details-table">
-                  <tbody>
-                    <tr><td>Tài khoản</td><td>{bankInfo.accountName}</td></tr>
-                    <tr><td>Cổng thanh toán</td><td>{bankInfo.bankName}</td></tr>
-                    <tr><td>Số tài khoản</td><td style={{ fontWeight: 800, color: '#1565c0' }}>{bankInfo.accountNumber}</td></tr>
-                    <tr><td>Nội dung</td><td style={{ fontWeight: 800, color: '#c92127' }}>{bankInfo.content}</td></tr>
-                    <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
-                  </tbody>
-                </table>
+                {hasPayOSLink ? (
+                  <table className="payment-details-table">
+                    <tbody>
+                      <tr><td>Cổng thanh toán</td><td>PayOS</td></tr>
+                      <tr><td>Nội dung</td><td style={{ fontWeight: 800, color: '#c92127' }}>{bankInfo.content}</td></tr>
+                      <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="payment-details-table">
+                    <tbody>
+                      <tr><td>Tài khoản</td><td>{bankInfo.accountName}</td></tr>
+                      <tr><td>Cổng thanh toán</td><td>{bankInfo.bankName}</td></tr>
+                      <tr><td>Số tài khoản</td><td style={{ fontWeight: 800, color: '#1565c0' }}>{bankInfo.accountNumber}</td></tr>
+                      <tr><td>Nội dung</td><td style={{ fontWeight: 800, color: '#c92127' }}>{bankInfo.content}</td></tr>
+                      <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
+                    </tbody>
+                  </table>
+                )}
                 {displayedQrUrl ? (
                   <div className="qr-code-box" style={{ marginTop: 16 }}>
-                    <img src={displayedQrUrl} alt="PayOS VietQR" />
-                    <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã PayOS VietQR</span>
+                    <img src={displayedQrUrl} alt={hasPayOSLink ? 'PayOS QR' : 'QR dự phòng'} />
+                    <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>{hasPayOSLink ? 'Quét mã PayOS' : 'Quét mã QR dự phòng'}</span>
                   </div>
                 ) : payosCheckoutUrl ? (
                   <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -278,12 +290,12 @@ function QrPaymentScreen({ result }) {
                       Mở trang thanh toán PayOS
                     </a>
                     <div style={{ padding: 16, borderRadius: 10, background: '#f5f5f5', color: '#666', fontSize: 13 }}>
-                      PayOS chưa trả về ảnh QR. Bạn có thể mở trang thanh toán để quét mã hoặc thanh toán trực tiếp.
+                      PayOS chưa trả về ảnh QR, nhưng vẫn có trang thanh toán chính thức để hoàn tất giao dịch.
                     </div>
                   </div>
                 ) : (
                   <div style={{ marginTop: 16, padding: 16, borderRadius: 10, background: '#f5f5f5', color: '#666', fontSize: 13 }}>
-                    Không lấy được dữ liệu QR từ PayOS.
+                    Không lấy được dữ liệu QR từ PayOS, nên đang hiển thị mã QR dự phòng.
                   </div>
                 )}
               </div>
@@ -538,10 +550,14 @@ export default function CheckoutPage() {
           data.payment_status = 'unpaid';
           data.status = 'pending';
           if (!data.payosQrCode && !data.payosCheckoutUrl) {
+            data.payosError = 'PayOS không trả về QR/checkoutUrl, đang dùng QR dự phòng.';
             data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
           }
         } else {
-          data.payosError = payosData.error || (payosRes.status === 404 ? 'PayOS endpoint chưa sẵn sàng, dùng QR dự phòng' : 'Không tạo được link PayOS');
+          const fallbackMessage = payosRes.status === 404
+            ? 'Không tìm thấy đơn hàng để tạo link PayOS hoặc endpoint chưa sẵn sàng.'
+            : 'Không tạo được link PayOS';
+          data.payosError = payosData.error || fallbackMessage;
           data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
         }
       }
