@@ -488,8 +488,6 @@ router.post('/payos/webhook', (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/payment/payos/webhook
 // Generic PayOS webhook handler (simulated) — flexible parsing like VietQR
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/payos/webhook', (req, res) => {
@@ -553,3 +551,5 @@ router.post('/payos/webhook', (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+module.exports = router;
