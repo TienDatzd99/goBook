@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -478,6 +478,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [orderResult, setOrderResult] = useState(null);
+  const creatingPayosLinkRef = useRef(false); // Prevent double-call to /payos/create
 
   const discount = voucherResult?.discount || 0;
   // Use subtotal BEFORE discount to determine free shipping (keep behavior consistent with cart)
@@ -570,29 +571,40 @@ export default function CheckoutPage() {
       data.city = orderData.city;
 
       if (payment === 'vietqr') {
-        const payosRes = await fetch(`${API_BASE}/api/payment/payos/create`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: data.orderId, orderCode: data.code }),
-        });
-        const payosData = await payosRes.json();
+        // Prevent double-call to /payos/create
+        if (creatingPayosLinkRef.current) {
+          console.warn('PayOS create already in progress, skipping double-call');
+          return;
+        }
+        creatingPayosLinkRef.current = true;
 
-        if (payosRes.ok && payosData.success !== false) {
-          data.payosCheckoutUrl = payosData.checkoutUrl || null;
-          data.payosQrCode = payosData.qrCode || null;
-          data.paymentLinkId = payosData.paymentLinkId || null;
-          data.payment_status = 'unpaid';
-          data.status = 'pending';
-          if (!data.payosQrCode && !data.payosCheckoutUrl) {
-            data.payosError = 'PayOS không trả về QR/checkoutUrl, đang dùng QR dự phòng.';
+        try {
+          const payosRes = await fetch(`${API_BASE}/api/payment/payos/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: data.orderId, orderCode: data.code }),
+          });
+          const payosData = await payosRes.json();
+
+          if (payosRes.ok && payosData.success !== false) {
+            data.payosCheckoutUrl = payosData.checkoutUrl || null;
+            data.payosQrCode = payosData.qrCode || null;
+            data.paymentLinkId = payosData.paymentLinkId || null;
+            data.payment_status = 'unpaid';
+            data.status = 'pending';
+            if (!data.payosQrCode && !data.payosCheckoutUrl) {
+              data.payosError = 'PayOS không trả về QR/checkoutUrl, đang dùng QR dự phòng.';
+              data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
+            }
+          } else {
+            const fallbackMessage = payosRes.status === 404
+              ? 'Không tìm thấy đơn hàng để tạo link PayOS hoặc endpoint chưa sẵn sàng.'
+              : 'Không tạo được link PayOS';
+            data.payosError = payosData.error || fallbackMessage;
             data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
           }
-        } else {
-          const fallbackMessage = payosRes.status === 404
-            ? 'Không tìm thấy đơn hàng để tạo link PayOS hoặc endpoint chưa sẵn sàng.'
-            : 'Không tạo được link PayOS';
-          data.payosError = payosData.error || fallbackMessage;
-          data.payosQrCode = buildVietQrUrl(data.code, actualTotal);
+        } finally {
+          creatingPayosLinkRef.current = false;
         }
       }
 
