@@ -452,12 +452,18 @@ router.post('/payos/create', async (req, res) => {
 
     const numericOrderCode = Number(String(order.code).replace(/\D/g, '')) || order.id;
 
+    // Prefer to set notifyUrl so PayOS will POST server-to-server notifications
+    const webhookUrl = process.env.PAYOS_WEBHOOK_URL || (process.env.BACKEND_URL ? `${process.env.BACKEND_URL.replace(/\/$/, '')}/api/payment/payos/webhook` : null) || `${req.protocol}://${req.get('host')}/api/payment/payos/webhook`;
+
     const paymentLink = await payos.paymentRequests.create({
       orderCode: numericOrderCode,
       amount: Number(order.total),
       description: order.code,
       returnUrl,
       cancelUrl,
+      // notifyUrl or notify_url depending on SDK / API expectations
+      notifyUrl: webhookUrl,
+      notify_url: webhookUrl,
     });
 
     const checkoutUrl = paymentLink.checkoutUrl || paymentLink.data?.checkoutUrl || null;
