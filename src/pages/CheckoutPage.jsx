@@ -27,20 +27,33 @@ function SuccessScreen({ result }) {
 
   useEffect(() => {
     if ((isBank || isVietqr) && !isPaid) {
-      const interval = setInterval(() => {
-        fetch(`${API_BASE}/api/payment/status/${result.code}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.status === 'confirmed' || data.payment_status === 'paid') {
+      const interval = setInterval(async () => {
+        try {
+          // Prefer PayOS check-payment if paymentLinkId available
+          if (result.paymentLinkId && result.payment_method === 'vietqr') {
+            const checkRes = await fetch(`${API_BASE}/api/payment/payos/check-payment/${encodeURIComponent(result.paymentLinkId)}`);
+            const checkData = await checkRes.json();
+            if ((checkData.success && checkData.code) || checkData.status === 'PAID') {
               setIsPaid(true);
               clearInterval(interval);
+              return;
             }
-          })
-          .catch(console.error);
+          }
+          
+          // Fallback to order status check
+          const res = await fetch(`${API_BASE}/api/payment/status/${result.code}`);
+          const data = await res.json();
+          if (data.status === 'confirmed' || data.payment_status === 'paid') {
+            setIsPaid(true);
+            clearInterval(interval);
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
+        }
       }, 3000);
       return () => clearInterval(interval);
     }
-  }, [isBank, isVietqr, isPaid, result.code]);
+  }, [isBank, isVietqr, isPaid, result.code, result.paymentLinkId, result.payment_method]);
 
   const bankInfo = {
     accountName: 'LE TIEN DAT',
@@ -218,20 +231,34 @@ function QrPaymentScreen({ result }) {
     if (paid) return;
     if (!isBank && !isVietqr) return;
 
-    const interval = setInterval(() => {
-      fetch(`${API_BASE}/api/payment/status/${result.code}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.status === 'confirmed' || data.payment_status === 'paid') {
+    const interval = setInterval(async () => {
+      try {
+        // Prefer PayOS check-payment endpoint if paymentLinkId available
+        if (result.paymentLinkId && result.payment_method === 'vietqr') {
+          const checkRes = await fetch(`${API_BASE}/api/payment/payos/check-payment/${encodeURIComponent(result.paymentLinkId)}`);
+          const checkData = await checkRes.json();
+          // If check says confirmed or PayOS status is PAID, mark as paid
+          if ((checkData.success && checkData.code) || checkData.status === 'PAID') {
             setPaid(true);
             clearInterval(interval);
+            return;
           }
-        })
-        .catch(console.error);
+        }
+        
+        // Fallback to order status check
+        const res = await fetch(`${API_BASE}/api/payment/status/${result.code}`);
+        const data = await res.json();
+        if (data.status === 'confirmed' || data.payment_status === 'paid') {
+          setPaid(true);
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [paid, isBank, isVietqr, result.code]);
+  }, [paid, isBank, isVietqr, result.code, result.paymentLinkId, result.payment_method]);
 
   const bankInfo = {
     accountName: 'LE TIEN DAT',
