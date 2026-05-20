@@ -61,6 +61,15 @@ function CustomerLayout({ children }) {
   );
 }
 
+function MinimalLayout({ children }) {
+  return (
+    <>
+      {children}
+      <ToastContainer />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -96,7 +105,8 @@ export default function App() {
                 <Route path="/danh-muc/:slug" element={<CustomerLayout><CategoryPage /></CustomerLayout>} />
                 <Route path="/san-pham/:slug" element={<CustomerLayout><ProductDetailPage /></CustomerLayout>} />
                 <Route path="/gio-hang" element={<CustomerLayout><CartPage /></CustomerLayout>} />
-                <Route path="/thanh-toan" element={<CustomerLayout><CheckoutPage /></CustomerLayout>} />
+                {/* Checkout uses a minimal shell so Header/Footer stay hidden in production too. */}
+                <Route path="/thanh-toan" element={<MinimalLayout><CheckoutPage /></MinimalLayout>} />
                 <Route path="/tim-kiem" element={<CustomerLayout><SearchPage /></CustomerLayout>} />
                 <Route path="/tra-cuu-don-hang" element={<CustomerLayout><OrderTrackingPage /></CustomerLayout>} />
                 <Route path="/diem-sach" element={<CustomerLayout><BlogPage /></CustomerLayout>} />
