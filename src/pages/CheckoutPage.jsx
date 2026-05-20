@@ -38,7 +38,7 @@ function SuccessScreen({ result }) {
 
   const bankInfo = {
     accountName: 'LE TIEN DAT',
-    bankName: 'Vietcombank',
+    bankName: 'PayOS VietQR',
     accountNumber: '1054599581',
     amount: result.total,
     content: result.code,
@@ -77,7 +77,7 @@ function SuccessScreen({ result }) {
                     <td>
                       {isCOD && 'Thanh toán tiền mặt khi giao hàng (COD)'}
                       {isBank && 'Chuyển khoản qua ngân hàng'}
-                      {isVietqr && 'Chuyển khoản qua QR - Vietcombank'}
+                      {isVietqr && 'Chuyển khoản qua QR - VietQR của PayOS'}
                       {isMomo && 'Thanh toán MoMo'}
                     </td>
                   </tr>
@@ -103,7 +103,7 @@ function SuccessScreen({ result }) {
                     </table>
                     {qrUrl && (
                       <div className="qr-code-box" style={{ marginTop: 16 }}>
-                        <img src={qrUrl} alt="VietQR" />
+                        <img src={qrUrl} alt="PayOS VietQR" />
                         <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã Napas 247</span>
                       </div>
                     )}
@@ -213,7 +213,7 @@ function QrPaymentScreen({ result }) {
 
   const bankInfo = {
     accountName: 'LE TIEN DAT',
-    bankName: 'Vietcombank',
+    bankName: 'PayOS VietQR',
     accountNumber: '1054599581',
     amount: result.total,
     content: result.code,
@@ -247,7 +247,7 @@ function QrPaymentScreen({ result }) {
                 <table className="payment-details-table">
                   <tbody>
                     <tr><td>Tài khoản</td><td>{bankInfo.accountName}</td></tr>
-                    <tr><td>Ngân hàng</td><td>{bankInfo.bankName}</td></tr>
+                    <tr><td>Cổng thanh toán</td><td>{bankInfo.bankName}</td></tr>
                     <tr><td>Số tài khoản</td><td style={{ fontWeight: 800, color: '#1565c0' }}>{bankInfo.accountNumber}</td></tr>
                     <tr><td>Nội dung</td><td style={{ fontWeight: 800, color: '#c92127' }}>{bankInfo.content}</td></tr>
                     <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
@@ -255,7 +255,7 @@ function QrPaymentScreen({ result }) {
                 </table>
                 {qrUrl && (
                   <div className="qr-code-box" style={{ marginTop: 16 }}>
-                    <img src={qrUrl} alt="VietQR" />
+                    <img src={qrUrl} alt="PayOS VietQR" />
                     <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã Napas 247</span>
                   </div>
                 )}
@@ -635,7 +635,7 @@ export default function CheckoutPage() {
                 <label className="radio-option">
                   <input type="radio" name="payment" value="vietqr" checked={payment === 'vietqr'} onChange={() => setPayment('vietqr')} />
                   <div className="radio-label">
-                    <span>📷 Chuyển khoản qua QR - Vietcombank</span>
+                    <span>📷 Chuyển khoản qua QR - VietQR của PayOS</span>
                   </div>
                 </label>
               </div>
