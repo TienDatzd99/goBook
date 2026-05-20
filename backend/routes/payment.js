@@ -446,6 +446,33 @@ router.post('/payos/create', async (req, res) => {
       return res.status(503).json({ error: 'PayOS chưa được cấu hình đầy đủ. Điền PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY vào .env' });
     }
 
+    // If order already has payment_ref, try to reuse the existing PayOS link
+    if (order.payment_ref) {
+      try {
+        console.log(`ℹ️ [PayOS Create] Order ${order.code} already has payment_ref: ${order.payment_ref}, fetching existing link...`);
+        const existingLink = await payos.paymentRequests.get(order.payment_ref);
+        if (existingLink && existingLink.paymentLinkId) {
+          const checkoutUrl = existingLink.checkoutUrl || existingLink.data?.checkoutUrl || null;
+          const qrCode = existingLink.qrCode || existingLink.data?.qrCode || null;
+          console.log(`✅ [PayOS Create] Reusing existing link: ${order.payment_ref}`);
+          return res.json({
+            success: true,
+            provider: 'payos',
+            code: order.code,
+            checkoutUrl,
+            qrCode,
+            paymentLinkId: order.payment_ref,
+            amount: Number(order.total),
+            description: order.code,
+            reused: true,
+          });
+        }
+      } catch (errReuse) {
+        console.log(`⚠️ [PayOS Create] Failed to reuse existing link (${order.payment_ref}), will create new: ${errReuse.message}`);
+        // Continue to create new link
+      }
+    }
+
     const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
     const returnUrl = process.env.PAYOS_RETURN_URL || `${frontendBase}/thanh-toan/ket-qua?provider=payos&orderCode=${encodeURIComponent(order.code)}`;
     const cancelUrl = process.env.PAYOS_CANCEL_URL || `${frontendBase}/thanh-toan?provider=payos&orderCode=${encodeURIComponent(order.code)}`;
@@ -458,35 +485,57 @@ router.post('/payos/create', async (req, res) => {
     // Try creating payment link requesting PayOS to notify our webhook.
     // Some PayOS tenants reject `notifyUrl`/`notify_url` fields (code:20).
     // In that case retry without those fields so link creation still succeeds.
+    // If PayOS rejects with code 231 (link exists), retry with random orderCode suffix.
     let paymentLink;
-    try {
-      paymentLink = await payos.paymentRequests.create({
-        orderCode: numericOrderCode,
-        amount: Number(order.total),
-        description: order.code,
-        returnUrl,
-        cancelUrl,
-        // may be rejected by some PayOS setups
-        notifyUrl: webhookUrl,
-        notify_url: webhookUrl,
-      });
-    } catch (errCreate) {
-      const msg = String(errCreate?.message || errCreate || '');
-      if (msg.includes('notifyUrl') || msg.includes('notify_url') || msg.includes('code: 20') || msg.includes('property notifyUrl')) {
-        console.log('⚠️ PayOS create rejected notifyUrl — retrying without notify fields');
-        try {
-          paymentLink = await payos.paymentRequests.create({
-            orderCode: numericOrderCode,
-            amount: Number(order.total),
-            description: order.code,
-            returnUrl,
-            cancelUrl,
-          });
-        } catch (err2) {
-          console.error('PayOS create retry failed:', err2);
-          throw err2;
+    let orderCodeWithSuffix = numericOrderCode;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      try {
+        paymentLink = await payos.paymentRequests.create({
+          orderCode: orderCodeWithSuffix,
+          amount: Number(order.total),
+          description: order.code,
+          returnUrl,
+          cancelUrl,
+          // may be rejected by some PayOS setups
+          notifyUrl: webhookUrl,
+          notify_url: webhookUrl,
+        });
+        break; // Success
+      } catch (errCreate) {
+        const msg = String(errCreate?.message || errCreate || '');
+        const code = errCreate?.code || errCreate?.response?.data?.code;
+        
+        // Handle code 231: link exists, retry with different orderCode
+        if (code === 231 || msg.includes('231') || msg.includes('đã tồn tại')) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            orderCodeWithSuffix = numericOrderCode + retryCount * 10000;
+            console.log(`⚠️ [PayOS Create] Link exists (231), retrying with orderCode: ${orderCodeWithSuffix}`);
+            continue;
+          }
         }
-      } else {
+        
+        // Handle notifyUrl rejection
+        if (msg.includes('notifyUrl') || msg.includes('notify_url') || msg.includes('code: 20') || msg.includes('property notifyUrl')) {
+          console.log('⚠️ PayOS create rejected notifyUrl — retrying without notify fields');
+          try {
+            paymentLink = await payos.paymentRequests.create({
+              orderCode: orderCodeWithSuffix,
+              amount: Number(order.total),
+              description: order.code,
+              returnUrl,
+              cancelUrl,
+            });
+            break; // Success
+          } catch (err2) {
+            console.error('PayOS create retry failed:', err2.message || err2);
+            throw err2;
+          }
+        }
+        
         throw errCreate;
       }
     }
