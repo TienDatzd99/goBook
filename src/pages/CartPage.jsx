@@ -52,7 +52,8 @@ export default function CartPage() {
 
   const selectedItems = items.filter(i => selectedIds.includes(i.id));
   const selectedTotal = selectedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const selectedShippingFee = selectedTotal >= freeShipThreshold ? 0 : 30000;
+  const DEFAULT_SHIPPING_FEE = parseInt(import.meta.env.VITE_DEFAULT_SHIPPING_FEE || '30000', 10);
+  const selectedShippingFee = selectedTotal >= freeShipThreshold ? 0 : DEFAULT_SHIPPING_FEE;
   const selectedGrandTotal = selectedTotal > 0 ? selectedTotal + selectedShippingFee : 0;
   const remaining = Math.max(0, freeShipThreshold - selectedTotal);
 

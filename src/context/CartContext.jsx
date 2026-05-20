@@ -54,8 +54,10 @@ export function CartProvider({ children }) {
 
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const count = items.reduce((sum, i) => sum + i.quantity, 0);
-  const freeShipThreshold = 300000;
-  const shippingFee = total >= freeShipThreshold ? 0 : 30000;
+  const FREE_SHIPPING_THRESHOLD = parseInt(import.meta.env.VITE_FREE_SHIPPING_THRESHOLD || '300000', 10);
+  const DEFAULT_SHIPPING_FEE = parseInt(import.meta.env.VITE_DEFAULT_SHIPPING_FEE || '30000', 10);
+  const freeShipThreshold = FREE_SHIPPING_THRESHOLD;
+  const shippingFee = total >= freeShipThreshold ? 0 : DEFAULT_SHIPPING_FEE;
   const grandTotal = total + shippingFee;
 
   return (
