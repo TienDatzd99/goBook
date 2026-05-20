@@ -185,6 +185,150 @@ function SuccessScreen({ result }) {
   );
 }
 
+function QrPaymentScreen({ result }) {
+  const isBank = result.payment_method === 'bank';
+  const isVietqr = result.payment_method === 'vietqr';
+  const isPaid = result.status === 'confirmed' || result.payment_status === 'paid';
+
+  const [paid, setPaid] = useState(isPaid);
+
+  useEffect(() => {
+    if (paid) return;
+    if (!isBank && !isVietqr) return;
+
+    const interval = setInterval(() => {
+      fetch(`${API_BASE}/api/payment/status/${result.code}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'confirmed' || data.payment_status === 'paid') {
+            setPaid(true);
+            clearInterval(interval);
+          }
+        })
+        .catch(console.error);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [paid, isBank, isVietqr, result.code]);
+
+  const bankInfo = {
+    accountName: 'LE TIEN DAT',
+    bankName: 'Vietcombank',
+    accountNumber: '1054599581',
+    amount: result.total,
+    content: result.code,
+  };
+
+  const qrUrl = isVietqr ? `https://img.vietqr.io/image/vietcombank-1054599581-compact2.png?amount=${result.total}&addInfo=${result.code}&accountName=LE%20TIEN%20DAT` : null;
+
+  return (
+    <div className="checkout-page">
+      <div className="checkout-container">
+        <div className="checkout-logo">
+          <Link to="/" style={{ textDecoration: 'none', color: '#c92127', fontSize: 24, fontWeight: 800 }}>goBook</Link>
+        </div>
+
+        <div className="checkout-layout">
+          <div className="checkout-left">
+            <div className="checkout-block success-header-block" style={{ background: paid ? '#e8f5e9' : '#fff8e1' }}>
+              <span className={`status-badge ${paid ? 'paid' : ''}`}>{paid ? 'Đã thanh toán' : 'Chờ quét QR'}</span>
+              <h2>Đơn hàng #{result.code}</h2>
+              <div className="success-header-notice" style={{ color: paid ? '#2e7d32' : '#c77700' }}>
+                <span style={{ fontSize: 18 }}>{paid ? '✓' : '⏳'}</span> {paid ? 'Thanh toán thành công' : 'Đơn hàng đã tạo. Quét mã QR bên dưới để thanh toán.'}
+              </div>
+            </div>
+
+            <div className="checkout-block">
+              <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 12 }}>Thanh toán qua QR</h3>
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: 12, padding: 16, background: '#fffdf5' }}>
+                <div style={{ fontSize: 13, color: '#555', marginBottom: 16, lineHeight: 1.5 }}>
+                  Mở app ngân hàng và quét mã bên dưới, hoặc chuyển khoản đúng số tiền và nội dung đơn hàng để hệ thống tự động xác nhận.
+                </div>
+                <table className="payment-details-table">
+                  <tbody>
+                    <tr><td>Tài khoản</td><td>{bankInfo.accountName}</td></tr>
+                    <tr><td>Ngân hàng</td><td>{bankInfo.bankName}</td></tr>
+                    <tr><td>Số tài khoản</td><td style={{ fontWeight: 800, color: '#1565c0' }}>{bankInfo.accountNumber}</td></tr>
+                    <tr><td>Nội dung</td><td style={{ fontWeight: 800, color: '#c92127' }}>{bankInfo.content}</td></tr>
+                    <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
+                  </tbody>
+                </table>
+                {qrUrl && (
+                  <div className="qr-code-box" style={{ marginTop: 16 }}>
+                    <img src={qrUrl} alt="VietQR" />
+                    <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã Napas 247</span>
+                  </div>
+                )}
+                {!qrUrl && (
+                  <div style={{ marginTop: 16, padding: 16, borderRadius: 10, background: '#f5f5f5', color: '#666', fontSize: 13 }}>
+                    Đơn hàng chuyển khoản ngân hàng sẽ được xác nhận sau khi hệ thống nhận được giao dịch.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {!paid && (
+              <div className="checkout-block">
+                <div className="upload-row">
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Hình ảnh chuyển khoản</div>
+                    <div className="upload-desc">Tải lên ảnh chụp màn hình chuyển khoản của bạn để chúng tôi dễ dàng xác minh giao dịch của bạn nhé</div>
+                  </div>
+                  <button className="btn-upload">Tải lên</button>
+                </div>
+              </div>
+            )}
+
+            <div className="checkout-block">
+              <span className="status-badge" style={{ background: '#fff3e0', color: '#e65100' }}>Đang chuẩn bị hàng</span>
+              <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>Giao hàng tận nơi</div>
+            </div>
+
+            <div className="checkout-block">
+              <h3>Địa chỉ nhận hàng</h3>
+              <div className="address-summary">
+                <strong>{result.customer_name} | {result.phone}</strong>
+                {result.email && <div>{result.email}</div>}
+                <div>{result.address}</div>
+                {result.city && <div>{result.city}</div>}
+              </div>
+            </div>
+          </div>
+
+          <div className="checkout-right">
+            <div className="checkout-block">
+              <h3>Giỏ hàng</h3>
+              <div className="checkout-items">
+                {result.snapshot_items?.map(item => (
+                  <div key={item.id} className="checkout-item" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #f0f0f0', display: 'flex' }}>
+                    <img src={item.image} alt={item.name} className="checkout-item-img" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6 }} />
+                    <div className="checkout-item-info" style={{ flex: 1, paddingLeft: 12 }}>
+                      <div className="checkout-item-name" style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</div>
+                      <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>Số lượng: {item.quantity}</div>
+                    </div>
+                    <div className="checkout-item-action">
+                      <div className="checkout-item-price" style={{ fontSize: 14, fontWeight: 600, color: '#c92127' }}>{formatPrice(item.price * item.quantity)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="checkout-block">
+              <h3>Tóm tắt đơn hàng</h3>
+              <div className="summary-lines">
+                <div className="summary-line"><span>Tổng tiền hàng</span><span>{formatPrice(result.subtotal || result.total)}</span></div>
+                <div className="summary-line"><span>Phí vận chuyển</span><span>{result.shipping_fee > 0 ? formatPrice(result.shipping_fee) : '-'}</span></div>
+                <div className="summary-line total"><span>Tổng thanh toán</span><span>{formatPrice(result.total)}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main CheckoutPage
 // ─────────────────────────────────────────────────────────────────────────────
@@ -365,7 +509,12 @@ export default function CheckoutPage() {
     }
   };
 
-  if (orderResult) return <SuccessScreen result={orderResult} />;
+  if (orderResult) {
+    if (orderResult.payment_method === 'bank' || orderResult.payment_method === 'vietqr') {
+      return <QrPaymentScreen result={orderResult} />;
+    }
+    return <SuccessScreen result={orderResult} />;
+  }
 
   if (items.length === 0) {
     return (
