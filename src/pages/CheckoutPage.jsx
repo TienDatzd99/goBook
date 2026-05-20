@@ -198,6 +198,8 @@ function QrPaymentScreen({ result }) {
   const payosCheckoutUrl = result.payosCheckoutUrl || result.checkoutUrl || null;
   const payosQrCode = result.payosQrCode || result.qrCode || null;
   const hasPayOSLink = Boolean(payosCheckoutUrl || payosQrCode);
+  const fallbackQrUrl = buildVietQrUrl(result.code, result.total);
+  const displayedQrUrl = payosQrCode || fallbackQrUrl;
 
   const [paid, setPaid] = useState(isPaid);
 
@@ -265,9 +267,9 @@ function QrPaymentScreen({ result }) {
                     <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
                   </tbody>
                 </table>
-                {payosQrCode ? (
+                {displayedQrUrl ? (
                   <div className="qr-code-box" style={{ marginTop: 16 }}>
-                    <img src={payosQrCode} alt="PayOS VietQR" />
+                    <img src={displayedQrUrl} alt="PayOS VietQR" />
                     <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã PayOS VietQR</span>
                   </div>
                 ) : payosCheckoutUrl ? (
