@@ -354,6 +354,81 @@ router.post('/vietqr/webhook', (req, res) => {
 module.exports = router;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PAYOS HELPERS (debugging only)
+// - GET  /api/payment/payos/config   -> show masked env status
+// - POST /api/payment/payos/simulate -> simulate webhook processing (no signature)
+//   Enabled only when PAYOS_ALLOW_SIMULATE=true in env
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/payos/config', (req, res) => {
+  const clientId = process.env.PAYOS_CLIENT_ID || null;
+  const apiKey = process.env.PAYOS_API_KEY || null;
+  const checksumKey = process.env.PAYOS_CHECKSUM_KEY || null;
+  const allowSimulate = process.env.PAYOS_ALLOW_SIMULATE === 'true';
+
+  function mask(v) {
+    if (!v) return null;
+    if (v.length <= 8) return '****' + v.slice(-4);
+    return v.slice(0, 4) + '...' + v.slice(-4);
+  }
+
+  res.json({
+    payosConfigured: Boolean(clientId && apiKey && checksumKey),
+    clientId: mask(clientId),
+    apiKeySet: Boolean(apiKey),
+    checksumKeySet: Boolean(checksumKey),
+    allowSimulate,
+  });
+});
+
+router.post('/payos/simulate', async (req, res) => {
+  if (process.env.PAYOS_ALLOW_SIMULATE !== 'true') {
+    return res.status(403).json({ error: 'Simulation disabled. Set PAYOS_ALLOW_SIMULATE=true to enable.' });
+  }
+
+  try {
+    const payload = req.body || {};
+
+    // Use the same parsing logic as real webhook after verification
+    const verified = payload; // treat as already-verified
+
+    console.log('🔧 [PayOS Simulate] payload received:', JSON.stringify(verified).slice(0, 1000));
+
+    if (verified.code && verified.code !== '00') {
+      return res.json({ success: false, message: 'Simulated payment not successful', code: verified.code, desc: verified.desc });
+    }
+
+    const orderCodeFromDescription = String(verified.description || '').match(/MLB\d{8}/i)?.[0]?.toUpperCase() || null;
+    const orderCodeFromNumber = String(verified.orderCode || '').trim()
+      ? `MLB${String(verified.orderCode).replace(/\D/g, '').padStart(8, '0')}`
+      : null;
+    const orderCode = orderCodeFromDescription || orderCodeFromNumber;
+
+    if (!orderCode) return res.status(400).json({ success: false, message: 'Missing orderCode in simulated payload' });
+
+    const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.status === 'confirmed') return res.json({ success: true, message: 'Already confirmed' });
+
+    const rawAmount = verified.amount ?? verified.data?.amount ?? verified.total ?? verified.data?.total ?? verified.sotien ?? verified.soTien ?? 0;
+    const amount = Number(String(rawAmount).replace(/[^0-9.-]+/g, '')) || 0;
+    const TOLERANCE = Number(process.env.WEBHOOK_AMOUNT_TOLERANCE) || 1000;
+
+    const paymentRef = verified.reference || verified.transactionId || verified.paymentLinkId || verified.data?.transaction_id || verified.data?.trans_id || verified.data?.id || null;
+
+    if (amount >= (order.total - TOLERANCE)) {
+      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentRef, orderCode);
+      console.log(`✅ [PayOS Simulate] Confirmed: ${orderCode} amount:${amount} ref:${paymentRef}`);
+      return res.json({ success: true, message: 'Simulated payment confirmed', code: orderCode });
+    }
+
+    return res.json({ success: false, message: 'Amount mismatch in simulation', got: amount, expected: order.total });
+  } catch (err) {
+    console.error('PayOS simulate error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/payment/payos/create
 // Create a real payOS payment link and return checkoutUrl + qrCode
 // ─────────────────────────────────────────────────────────────────────────────
