@@ -449,16 +449,28 @@ router.post('/payos/webhook', async (req, res) => {
       return res.json({ success: true, message: 'Already confirmed' });
     }
 
-    const amount = Number(verified.amount || 0);
+    // Try multiple possible fields for amount (depends on PayOS payload shape)
+    const rawAmount = verified.amount ?? verified.data?.amount ?? verified.total ?? verified.data?.total ?? verified.sotien ?? verified.soTien ?? 0;
+    const amount = Number(String(rawAmount).replace(/[^0-9.-]+/g, '')) || 0;
     const TOLERANCE = Number(process.env.WEBHOOK_AMOUNT_TOLERANCE) || 1000;
+
+    // Normalize several possible payment reference fields
+    const paymentRef = verified.reference || verified.transactionId || verified.paymentLinkId || verified.data?.transaction_id || verified.data?.trans_id || verified.data?.id || null;
+
     if (amount >= (order.total - TOLERANCE)) {
-      const paymentRef = verified.reference || verified.transactionId || verified.paymentLinkId || null;
       db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentRef, orderCode);
       console.log(`✅ [PayOS Webhook] Confirmed: ${orderCode} amount:${amount} ref:${paymentRef}`);
       return res.json({ success: true, message: 'Payment confirmed', code: orderCode });
     }
 
-    console.log(`⚠️ [PayOS Webhook] Amount mismatch for ${orderCode}: got ${amount}, expected ${order.total}`);
+    // Log helpful debug info for mismatches (trim long payload)
+    try {
+      const snippet = JSON.stringify(verified).slice(0, 2000);
+      console.log(`⚠️ [PayOS Webhook] Amount mismatch for ${orderCode}: got ${amount}, expected ${order.total}. payload: ${snippet}`);
+    } catch (e) {
+      console.log(`⚠️ [PayOS Webhook] Amount mismatch for ${orderCode}: got ${amount}, expected ${order.total}. (failed to stringify payload)`);
+    }
+
     res.json({ success: false, message: 'Amount mismatch', got: amount, expected: order.total });
   } catch (err) {
     console.error('PayOS webhook error:', err);
