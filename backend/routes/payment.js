@@ -518,6 +518,48 @@ router.post('/payos/create', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/payment/payos/check-payment/:paymentLinkId
+// Query PayOS to check if payment is PAID; if so, auto-confirm order
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/payos/check-payment/:paymentLinkId', async (req, res) => {
+  try {
+    const paymentLinkId = req.params.paymentLinkId;
+    if (!paymentLinkId) return res.status(400).json({ error: 'Missing paymentLinkId' });
+
+    const payos = getPayOSClient();
+    if (!payos) {
+      return res.status(503).json({ error: 'PayOS chưa được cấu hình' });
+    }
+
+    // Query PayOS to get payment link details
+    const paymentLink = await payos.paymentRequests.get(paymentLinkId);
+
+    console.log(`🔍 [PayOS Check] Link ${paymentLinkId}: status=${paymentLink.status}, description=${paymentLink.description}`);
+
+    // If PayOS reports status='PAID', find & confirm the order
+    if (paymentLink.status === 'PAID') {
+      const description = String(paymentLink.description || '');
+      const orderCodeMatch = description.match(/MLB\d{8}/i);
+      const orderCode = orderCodeMatch ? orderCodeMatch[0].toUpperCase() : null;
+
+      if (orderCode) {
+        const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
+        if (order && order.status !== 'confirmed') {
+          db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentLinkId, orderCode);
+          console.log(`✅ [PayOS Check] Auto-confirmed: ${orderCode}`);
+          return res.json({ success: true, message: 'Payment confirmed from PayOS', status: 'PAID', code: orderCode });
+        }
+      }
+    }
+
+    res.json({ success: true, status: paymentLink.status, paymentLinkId, description: paymentLink.description });
+  } catch (err) {
+    console.error('PayOS check-payment error:', err.message || err);
+    res.status(500).json({ error: 'Không thể kiểm tra thanh toán: ' + (err.message || 'Unknown error') });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PAYOS WEBHOOK – Per https://payos.vn/docs/du-lieu-tra-ve/webhook/
 // POST /api/payment/payos/webhook
 router.post('/payos/webhook', async (req, res) => {

@@ -35,7 +35,69 @@ export default function PaymentReturnPage() {
             return;
           }
 
-          endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(orderCode)}`;
+          // First fetch order details to get paymentLinkId (stored in payment_ref)
+          const statusRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(orderCode)}`);
+          const statusData = await statusRes.json();
+
+          // If already confirmed, show success
+          if (statusData.status === 'confirmed' || statusData.payment_status === 'paid') {
+            setData({ ...statusData, provider: 'payos', code: orderCode });
+            setStatus('success');
+            return;
+          }
+
+          // Try to check PayOS link status directly via paymentLinkId (in payment_ref)
+          const paymentLinkId = statusData.payment_ref;
+          if (paymentLinkId) {
+            try {
+              const checkRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/payos/check-payment/${encodeURIComponent(paymentLinkId)}`);
+              const checkData = await checkRes.json();
+
+              // If check confirmed the order, show success
+              if (checkData.success && checkData.code) {
+                setData({ ...checkData, provider: 'payos', code: orderCode });
+                setStatus('success');
+                return;
+              }
+
+              // If PayOS status is PAID but order still pending, poll status endpoint
+              if (checkData.status === 'PAID') {
+                // Poll briefly in case the DB update happens shortly
+                let attempts = 0;
+                while (attempts < 10) {
+                  await new Promise(resolve => setTimeout(resolve, 1500));
+                  const pollRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(orderCode)}`);
+                  const pollData = await pollRes.json();
+                  if (pollData.status === 'confirmed' || pollData.payment_status === 'paid') {
+                    setData({ ...pollData, provider: 'payos', code: orderCode });
+                    setStatus('success');
+                    return;
+                  }
+                  attempts += 1;
+                }
+              }
+            } catch (checkErr) {
+              console.log('PayOS check failed:', checkErr);
+            }
+          }
+
+          // Fallback: Poll order status endpoint
+          let attempts = 0;
+          while (attempts < 15) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const pollRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(orderCode)}`);
+            const pollData = await pollRes.json();
+            if (pollData.status === 'confirmed' || pollData.payment_status === 'paid') {
+              setData({ ...pollData, provider: 'payos', code: orderCode });
+              setStatus('success');
+              return;
+            }
+            attempts += 1;
+          }
+
+          setData({ ...statusData, provider: 'payos', code: orderCode, message: 'Đang chờ PayOS xác nhận giao dịch. Vui lòng kiểm tra lại sau ít phút.' });
+          setStatus('failed');
+          return;
         } else {
           queryString = searchParams.toString();
           endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/momo/callback?${queryString}`;
@@ -44,32 +106,9 @@ export default function PaymentReturnPage() {
         const res = await fetch(endpoint);
         const result = await res.json();
 
-        if (isPayOS) {
-          const code = result.code || searchParams.get('orderCode');
-          const confirmed = result.status === 'confirmed' || result.payment_status === 'paid';
-
-          if (confirmed) {
-            setData({ ...result, provider: 'payos', code });
-            setStatus('success');
-            return;
-          }
-
-          // Poll briefly in case the webhook arrives a few seconds after the user returns.
-          let attempts = 0;
-          while (attempts < 15) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const pollRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(code)}`);
-            const pollData = await pollRes.json();
-            if (pollData.status === 'confirmed' || pollData.payment_status === 'paid') {
-              setData({ ...pollData, provider: 'payos', code });
-              setStatus('success');
-              return;
-            }
-            attempts += 1;
-          }
-
-          setData({ ...result, provider: 'payos', code, message: 'Đang chờ PayOS xác nhận giao dịch. Vui lòng kiểm tra lại sau ít phút.' });
-          setStatus('failed');
+        if (!isVNPay && !isMomo && !isPayOS) {
+          setData(result);
+          setStatus(result.success ? 'success' : 'failed');
           return;
         }
 
