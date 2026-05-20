@@ -199,7 +199,18 @@ function QrPaymentScreen({ result }) {
   const payosQrCode = result.payosQrCode || result.qrCode || null;
   const hasPayOSLink = Boolean(payosCheckoutUrl || payosQrCode);
   const fallbackQrUrl = buildVietQrUrl(result.code, result.total);
-  const displayedQrUrl = payosQrCode || (!hasPayOSLink ? fallbackQrUrl : null);
+  let displayedQrUrl = null;
+  if (payosQrCode) {
+    // PayOS có thể trả về URL hoặc trả về payload EMV (chuỗi),
+    // nếu là payload thì chuyển thành URL ảnh QR thông qua qrserver
+    if (/^https?:\/\//i.test(payosQrCode)) {
+      displayedQrUrl = payosQrCode;
+    } else {
+      displayedQrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(payosQrCode)}&size=360x360`;
+    }
+  } else if (!hasPayOSLink) {
+    displayedQrUrl = fallbackQrUrl;
+  }
 
   const [paid, setPaid] = useState(isPaid);
 
