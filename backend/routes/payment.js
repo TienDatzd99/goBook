@@ -583,25 +583,25 @@ router.get('/payos/check-payment/:paymentLinkId', async (req, res) => {
     // Query PayOS to get payment link details
     const paymentLink = await payos.paymentRequests.get(paymentLinkId);
 
-    console.log(`🔍 [PayOS Check] Link ${paymentLinkId}: status=${paymentLink.status}, description=${paymentLink.description}`);
+    console.log(`🔍 [PayOS Check] Link ${paymentLinkId}: status=${paymentLink.status}`);
+    console.log(`   Response:`, JSON.stringify(paymentLink).slice(0, 300));
 
     // If PayOS reports status='PAID', find & confirm the order
     if (paymentLink.status === 'PAID') {
-      const description = String(paymentLink.description || '');
-      const orderCodeMatch = description.match(/MLB\d{8}/i);
-      const orderCode = orderCodeMatch ? orderCodeMatch[0].toUpperCase() : null;
+      // Lookup order from DB using paymentLinkId (stored as payment_ref)
+      const order = db.prepare('SELECT * FROM orders WHERE payment_ref=?').get(paymentLinkId);
 
-      if (orderCode) {
-        const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
-        if (order && order.status !== 'confirmed') {
-          db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentLinkId, orderCode);
-          console.log(`✅ [PayOS Check] Auto-confirmed: ${orderCode}`);
-          return res.json({ success: true, message: 'Payment confirmed from PayOS', status: 'PAID', code: orderCode });
-        }
+      if (order && order.status !== 'confirmed') {
+        db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE id=?`).run(order.id);
+        console.log(`✅ [PayOS Check] Auto-confirmed: ${order.code}`);
+        return res.json({ success: true, message: 'Payment confirmed from PayOS', status: 'PAID', code: order.code, paymentLinkId });
+      } else if (order && order.status === 'confirmed') {
+        console.log(`ℹ️ [PayOS Check] Order ${order.code} already confirmed`);
+        return res.json({ success: true, message: 'Order already confirmed', status: 'PAID', code: order.code, paymentLinkId });
       }
     }
 
-    res.json({ success: true, status: paymentLink.status, paymentLinkId, description: paymentLink.description });
+    res.json({ success: true, status: paymentLink.status, paymentLinkId });
   } catch (err) {
     console.error('PayOS check-payment error:', err.message || err);
     res.status(500).json({ error: 'Không thể kiểm tra thanh toán: ' + (err.message || 'Unknown error') });
