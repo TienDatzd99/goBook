@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, adminOnly } = require('../middleware/auth');
 const { getTransporter } = require('../utils/mailer');
+const { FREE_SHIPPING_THRESHOLD, DEFAULT_SHIPPING_FEE } = require('../config');
 const router = express.Router();
 
 function generateOrderCode() {
@@ -52,18 +53,18 @@ async function sendOrderEmail(order, items, type) {
       <p style="color:#555;">Cảm ơn bạn đã đặt hàng! Đơn hàng <strong>${order.code}</strong> của bạn đã được tiếp nhận và đang chờ xác nhận từ đội ngũ goBook.<br/>Chúng tôi sẽ liên hệ qua số <strong>${order.phone}</strong> để xác nhận trong vòng <strong>30 phút</strong>.</p>
     `,
     bank_customer: `
-      <div style="font-size:16px;color:#1565c0;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được xác nhận!</div>
-      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được xác nhận. Vui lòng chuyển khoản để hoàn tất:</p>
+      <div style="font-size:16px;color:#1565c0;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được tiếp nhận!</div>
+      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được tiếp nhận. Vui lòng chuyển khoản để hoàn tất quá trình thanh toán:</p>
       ${BANK_INFO}
-      <p style="color:#777;font-size:13px;">⚠️ Đơn hàng sẽ được giao sau khi nhận được thanh toán.</p>
+      <p style="color:#777;font-size:13px;">⚠️ Đơn hàng sẽ được xác nhận và giao sau khi chúng tôi nhận được thanh toán.</p>
     `,
     momo_customer: `
-      <div style="font-size:16px;color:#ae1c7b;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được xác nhận!</div>
-      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được xác nhận. Vui lòng thanh toán qua MoMo số <strong>0966160925</strong> (goBook), số tiền: <strong style="color:#d32f2f;">${fmt(order.total)}</strong>, nội dung: <strong>${order.code}</strong>.</p>
+      <div style="font-size:16px;color:#ae1c7b;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được tiếp nhận!</div>
+      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được tiếp nhận. Vui lòng thanh toán qua MoMo số <strong>0966160925</strong> (goBook), số tiền: <strong style="color:#d32f2f;">${fmt(order.total)}</strong>, nội dung: <strong>${order.code}</strong>.</p>
     `,
     vietqr_customer: `
-      <div style="font-size:16px;color:#0288d1;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được xác nhận!</div>
-      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được xác nhận. Vui lòng quét mã VietQR trên website hoặc chuyển khoản vào tài khoản Vietcombank (1054599581 - LE TIEN DAT) với nội dung: <strong>${order.code}</strong>. Hệ thống sẽ tự động xác nhận sau khi nhận được thanh toán.</p>
+      <div style="font-size:16px;color:#0288d1;font-weight:700;margin-bottom:8px;">✅ Đơn hàng đã được tiếp nhận!</div>
+      <p style="color:#555;">Đơn hàng <strong>${order.code}</strong> đã được tiếp nhận. Vui lòng quét mã VietQR trên website hoặc chuyển khoản vào tài khoản Vietcombank (1054599581 - LE TIEN DAT) với nội dung: <strong>${order.code}</strong>. Hệ thống sẽ tự động xác nhận sau khi nhận được thanh toán.</p>
     `,
     cod_admin: `
       <p>Đơn hàng <strong>${order.code}</strong> mới cần xác nhận (COD):</p>
@@ -215,9 +216,9 @@ router.post('/', async (req, res) => {
 
   // Determine initial status
   // COD   → 'pending' (đợi admin xác nhận)
-  // bank / vietqr → 'confirmed' (tự động)
-  // momo / vnpay → 'pending' (xác nhận sau khi callback thanh toán thành công)
-  const initialStatus = method === 'cod' ? 'pending' : (method === 'bank' || method === 'vietqr') ? 'confirmed' : 'pending';
+  // bank / vietqr → 'pending' (đợi khách chuyển khoản và admin/webhook xác nhận)
+  // momo / vnpay → 'pending'
+  const initialStatus = 'pending';
 
   let subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   let discountAmount = 0;
@@ -237,7 +238,8 @@ router.post('/', async (req, res) => {
     }
   }
 
-  const shipping_fee = (subtotal - discountAmount) >= 300000 ? 0 : 30000;
+  // Free shipping applies based on subtotal BEFORE discounts (business choice)
+  const shipping_fee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DEFAULT_SHIPPING_FEE;
   const total = subtotal - discountAmount + shipping_fee;
   const code = generateOrderCode();
 
@@ -303,10 +305,11 @@ router.post('/', async (req, res) => {
     total,
     discount: discountAmount,
     status: initialStatus,
+    payment_status: 'unpaid',
     payment_method: method,
     message: method === 'cod'
       ? 'Đặt hàng thành công! Đơn hàng đang chờ xác nhận từ admin.'
-      : 'Đặt hàng thành công! Đơn hàng đã được xác nhận.',
+      : 'Đặt hàng thành công! Đơn hàng đã được tiếp nhận và chờ thanh toán.',
   });
 });
 
