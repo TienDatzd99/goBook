@@ -4,6 +4,7 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const db = require('./database');
 
 const allowedOrigins = new Set(['http://localhost:5173', 'http://localhost:3000']);
 if (process.env.FRONTEND_URL) allowedOrigins.add(process.env.FRONTEND_URL);
@@ -69,6 +70,13 @@ app.use('/api/collections', require('./routes/collections'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+
+// Backward compatibility: some clients poll /status/:orderCode (without /api/payment)
+app.get('/status/:orderCode', (req, res) => {
+  const order = db.prepare('SELECT id, code, status, payment_method, payment_status, total FROM orders WHERE code=?').get(req.params.orderCode);
+  if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+  res.json(order);
+});
 
 // 404
 app.use((req, res) => res.status(404).json({ error: 'Endpoint không tồn tại' }));

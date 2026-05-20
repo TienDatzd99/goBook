@@ -432,6 +432,10 @@ router.post('/payos/simulate', async (req, res) => {
 // POST /api/payment/payos/create
 // Create a real payOS payment link and return checkoutUrl + qrCode
 // ─────────────────────────────────────────────────────────────────────────────
+router.get('/payos/create', (req, res) => {
+  res.status(405).json({ error: 'Method not allowed. Use POST /api/payment/payos/create' });
+});
+
 router.post('/payos/create', async (req, res) => {
   try {
     const { orderId, orderCode } = req.body;
