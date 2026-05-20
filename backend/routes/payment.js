@@ -455,16 +455,41 @@ router.post('/payos/create', async (req, res) => {
     // Prefer to set notifyUrl so PayOS will POST server-to-server notifications
     const webhookUrl = process.env.PAYOS_WEBHOOK_URL || (process.env.BACKEND_URL ? `${process.env.BACKEND_URL.replace(/\/$/, '')}/api/payment/payos/webhook` : null) || `${req.protocol}://${req.get('host')}/api/payment/payos/webhook`;
 
-    const paymentLink = await payos.paymentRequests.create({
-      orderCode: numericOrderCode,
-      amount: Number(order.total),
-      description: order.code,
-      returnUrl,
-      cancelUrl,
-      // notifyUrl or notify_url depending on SDK / API expectations
-      notifyUrl: webhookUrl,
-      notify_url: webhookUrl,
-    });
+    // Try creating payment link requesting PayOS to notify our webhook.
+    // Some PayOS tenants reject `notifyUrl`/`notify_url` fields (code:20).
+    // In that case retry without those fields so link creation still succeeds.
+    let paymentLink;
+    try {
+      paymentLink = await payos.paymentRequests.create({
+        orderCode: numericOrderCode,
+        amount: Number(order.total),
+        description: order.code,
+        returnUrl,
+        cancelUrl,
+        // may be rejected by some PayOS setups
+        notifyUrl: webhookUrl,
+        notify_url: webhookUrl,
+      });
+    } catch (errCreate) {
+      const msg = String(errCreate?.message || errCreate || '');
+      if (msg.includes('notifyUrl') || msg.includes('notify_url') || msg.includes('code: 20') || msg.includes('property notifyUrl')) {
+        console.log('⚠️ PayOS create rejected notifyUrl — retrying without notify fields');
+        try {
+          paymentLink = await payos.paymentRequests.create({
+            orderCode: numericOrderCode,
+            amount: Number(order.total),
+            description: order.code,
+            returnUrl,
+            cancelUrl,
+          });
+        } catch (err2) {
+          console.error('PayOS create retry failed:', err2);
+          throw err2;
+        }
+      } else {
+        throw errCreate;
+      }
+    }
 
     const checkoutUrl = paymentLink.checkoutUrl || paymentLink.data?.checkoutUrl || null;
     const qrCode = paymentLink.qrCode || paymentLink.data?.qrCode || null;
