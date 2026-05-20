@@ -189,6 +189,9 @@ function QrPaymentScreen({ result }) {
   const isBank = result.payment_method === 'bank';
   const isVietqr = result.payment_method === 'vietqr';
   const isPaid = result.status === 'confirmed' || result.payment_status === 'paid';
+  const payosCheckoutUrl = result.payosCheckoutUrl || result.checkoutUrl || null;
+  const payosQrCode = result.payosQrCode || result.qrCode || null;
+  const hasPayOSLink = Boolean(payosCheckoutUrl || payosQrCode);
 
   const [paid, setPaid] = useState(isPaid);
 
@@ -219,8 +222,6 @@ function QrPaymentScreen({ result }) {
     content: result.code,
   };
 
-  const qrUrl = isVietqr ? `https://img.vietqr.io/image/vietcombank-1054599581-compact2.png?amount=${result.total}&addInfo=${result.code}&accountName=LE%20TIEN%20DAT` : null;
-
   return (
     <div className="checkout-page">
       <div className="checkout-container">
@@ -239,10 +240,15 @@ function QrPaymentScreen({ result }) {
             </div>
 
             <div className="checkout-block">
-              <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 12 }}>Thanh toán qua QR</h3>
+              <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 12 }}>Thanh toán qua QR của PayOS</h3>
               <div style={{ border: '1px solid #e0e0e0', borderRadius: 12, padding: 16, background: '#fffdf5' }}>
+                {result.payosError && (
+                  <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: '#fff1f0', color: '#b71c1c', fontSize: 13, fontWeight: 600 }}>
+                    {result.payosError}
+                  </div>
+                )}
                 <div style={{ fontSize: 13, color: '#555', marginBottom: 16, lineHeight: 1.5 }}>
-                  Mở app ngân hàng và quét mã bên dưới, hoặc chuyển khoản đúng số tiền và nội dung đơn hàng để hệ thống tự động xác nhận.
+                  Mở app ngân hàng và quét mã bên dưới. Đơn hàng sẽ tự chuyển sang đã thanh toán sau khi PayOS xác nhận giao dịch.
                 </div>
                 <table className="payment-details-table">
                   <tbody>
@@ -253,15 +259,23 @@ function QrPaymentScreen({ result }) {
                     <tr><td>Số tiền</td><td style={{ fontWeight: 800, color: '#c92127' }}>{formatPrice(bankInfo.amount)}</td></tr>
                   </tbody>
                 </table>
-                {qrUrl && (
+                {payosQrCode ? (
                   <div className="qr-code-box" style={{ marginTop: 16 }}>
-                    <img src={qrUrl} alt="PayOS VietQR" />
-                    <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã Napas 247</span>
+                    <img src={payosQrCode} alt="PayOS VietQR" />
+                    <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã PayOS VietQR</span>
                   </div>
-                )}
-                {!qrUrl && (
+                ) : payosCheckoutUrl ? (
+                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <a href={payosCheckoutUrl} target="_blank" rel="noreferrer" className="btn-place-order" style={{ textAlign: 'center', textDecoration: 'none' }}>
+                      Mở trang thanh toán PayOS
+                    </a>
+                    <div style={{ padding: 16, borderRadius: 10, background: '#f5f5f5', color: '#666', fontSize: 13 }}>
+                      PayOS chưa trả về ảnh QR. Bạn có thể mở trang thanh toán để quét mã hoặc thanh toán trực tiếp.
+                    </div>
+                  </div>
+                ) : (
                   <div style={{ marginTop: 16, padding: 16, borderRadius: 10, background: '#f5f5f5', color: '#666', fontSize: 13 }}>
-                    Đơn hàng chuyển khoản ngân hàng sẽ được xác nhận sau khi hệ thống nhận được giao dịch.
+                    Không lấy được dữ liệu QR từ PayOS.
                   </div>
                 )}
               </div>
@@ -492,7 +506,6 @@ export default function CheckoutPage() {
       if (selectedIds) removeItems(selectedIds);
       else clearCart();
 
-      // Show success screen (skip VNPay/MoMo redirect for this new UI, just show success directly)
       data.snapshot_items = items;
       data.shipping_fee = actualShipping;
       data.subtotal = total;
@@ -501,6 +514,26 @@ export default function CheckoutPage() {
       data.email = orderData.email;
       data.address = orderData.address;
       data.city = orderData.city;
+
+      if (payment === 'vietqr') {
+        const payosRes = await fetch(`${API_BASE}/api/payment/payos/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: data.orderId, orderCode: data.code }),
+        });
+        const payosData = await payosRes.json();
+
+        if (payosRes.ok && payosData.success !== false) {
+          data.payosCheckoutUrl = payosData.checkoutUrl || null;
+          data.payosQrCode = payosData.qrCode || null;
+          data.paymentLinkId = payosData.paymentLinkId || null;
+          data.payment_status = 'unpaid';
+          data.status = 'pending';
+        } else {
+          data.payosError = payosData.error || 'Không tạo được link PayOS';
+        }
+      }
+
       setOrderResult(data);
     } catch {
       setError('Lỗi kết nối. Vui lòng thử lại.');

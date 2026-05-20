@@ -4,6 +4,27 @@ const axios = require('axios');
 const db = require('../database');
 const router = express.Router();
 
+const { PayOS } = require('@payos/node');
+
+let payosClient = null;
+function getPayOSClient() {
+  if (payosClient) return payosClient;
+
+  const clientId = process.env.PAYOS_CLIENT_ID;
+  const apiKey = process.env.PAYOS_API_KEY;
+  const checksumKey = process.env.PAYOS_CHECKSUM_KEY;
+
+  if (!clientId || !apiKey || !checksumKey) return null;
+
+  payosClient = new PayOS({
+    clientId,
+    apiKey,
+    checksumKey,
+  });
+
+  return payosClient;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // VNPay – dùng thư viện chính thức từ npm
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,6 +352,64 @@ router.post('/vietqr/webhook', (req, res) => {
 });
 
 module.exports = router;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/payment/payos/create
+// Create a real payOS payment link and return checkoutUrl + qrCode
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/payos/create', async (req, res) => {
+  try {
+    const { orderId, orderCode } = req.body;
+    const order = db.prepare('SELECT * FROM orders WHERE id=? OR code=?').get(orderId || null, orderCode || null);
+
+    if (!order) {
+      return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    }
+
+    const payos = getPayOSClient();
+    if (!payos) {
+      return res.status(503).json({ error: 'PayOS chưa được cấu hình đầy đủ. Điền PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY vào .env' });
+    }
+
+    const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const returnUrl = process.env.PAYOS_RETURN_URL || `${frontendBase}/thanh-toan/ket-qua?provider=payos&orderCode=${encodeURIComponent(order.code)}`;
+    const cancelUrl = process.env.PAYOS_CANCEL_URL || `${frontendBase}/thanh-toan?provider=payos&orderCode=${encodeURIComponent(order.code)}`;
+
+    const numericOrderCode = Number(String(order.code).replace(/\D/g, '')) || order.id;
+
+    const paymentLink = await payos.paymentRequests.create({
+      orderCode: numericOrderCode,
+      amount: Number(order.total),
+      description: order.code,
+      returnUrl,
+      cancelUrl,
+    });
+
+    const checkoutUrl = paymentLink.checkoutUrl || paymentLink.data?.checkoutUrl || null;
+    const qrCode = paymentLink.qrCode || paymentLink.data?.qrCode || null;
+    const paymentLinkId = paymentLink.paymentLinkId || paymentLink.data?.paymentLinkId || null;
+
+    if (paymentLinkId) {
+      db.prepare(`UPDATE orders SET payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(String(paymentLinkId), order.code);
+    }
+
+    res.json({
+      success: true,
+      provider: 'payos',
+      code: order.code,
+      checkoutUrl,
+      qrCode,
+      paymentLinkId,
+      amount: Number(order.total),
+      description: order.code,
+      returnUrl,
+      cancelUrl,
+    });
+  } catch (err) {
+    console.error('PayOS create error:', err.message || err);
+    res.status(500).json({ error: 'Không thể tạo link PayOS: ' + (err.message || 'Unknown error') });
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAYOS WEBHOOK – Per https://payos.vn/docs/du-lieu-tra-ve/webhook/

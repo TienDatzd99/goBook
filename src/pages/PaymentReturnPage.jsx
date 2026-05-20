@@ -14,8 +14,9 @@ export default function PaymentReturnPage() {
         // Detect which gateway returned
         const isVNPay = searchParams.has('vnp_ResponseCode');
         const isMomo  = searchParams.has('resultCode');
+        const isPayOS = searchParams.get('provider') === 'payos' || searchParams.has('orderCode') || searchParams.has('payos');
 
-        if (!isVNPay && !isMomo) {
+        if (!isVNPay && !isMomo && !isPayOS) {
           setStatus('failed');
           setData({ message: 'Không xác định được cổng thanh toán.' });
           return;
@@ -26,6 +27,15 @@ export default function PaymentReturnPage() {
         if (isVNPay) {
           queryString = searchParams.toString();
           endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/vnpay/callback?${queryString}`;
+        } else if (isPayOS) {
+          const orderCode = searchParams.get('orderCode');
+          if (!orderCode) {
+            setStatus('failed');
+            setData({ message: 'Thiếu mã đơn hàng PayOS.' });
+            return;
+          }
+
+          endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(orderCode)}`;
         } else {
           queryString = searchParams.toString();
           endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/momo/callback?${queryString}`;
@@ -33,6 +43,35 @@ export default function PaymentReturnPage() {
 
         const res = await fetch(endpoint);
         const result = await res.json();
+
+        if (isPayOS) {
+          const code = result.code || searchParams.get('orderCode');
+          const confirmed = result.status === 'confirmed' || result.payment_status === 'paid';
+
+          if (confirmed) {
+            setData({ ...result, provider: 'payos', code });
+            setStatus('success');
+            return;
+          }
+
+          // Poll briefly in case the webhook arrives a few seconds after the user returns.
+          let attempts = 0;
+          while (attempts < 15) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const pollRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${encodeURIComponent(code)}`);
+            const pollData = await pollRes.json();
+            if (pollData.status === 'confirmed' || pollData.payment_status === 'paid') {
+              setData({ ...pollData, provider: 'payos', code });
+              setStatus('success');
+              return;
+            }
+            attempts += 1;
+          }
+
+          setData({ ...result, provider: 'payos', code, message: 'Đang chờ PayOS xác nhận giao dịch. Vui lòng kiểm tra lại sau ít phút.' });
+          setStatus('failed');
+          return;
+        }
 
         setData({ ...result, provider: isVNPay ? 'vnpay' : 'momo' });
         setStatus(result.success ? 'success' : 'failed');
@@ -70,7 +109,7 @@ export default function PaymentReturnPage() {
             Đơn hàng đã được xác nhận và đang được chuẩn bị giao đến bạn.
           </p>
           <div className="return-provider">
-            {data?.provider === 'vnpay' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua VNPay</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Smartphone size={18} /> Thanh toán qua MoMo</span>}
+            {data?.provider === 'vnpay' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua VNPay</span> : data?.provider === 'payos' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><CreditCard size={18} /> Thanh toán qua PayOS VietQR</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Smartphone size={18} /> Thanh toán qua MoMo</span>}
           </div>
           <div className="return-actions">
             <Link to="/tra-cuu-don-hang" className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Search size={18} /> Theo dõi đơn hàng</Link>
