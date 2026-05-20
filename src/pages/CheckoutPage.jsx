@@ -15,6 +15,7 @@ function SuccessScreen({ result }) {
   const isBank = result.payment_method === 'bank';
   const isMomo = result.payment_method === 'momo';
   const isVietqr = result.payment_method === 'vietqr';
+  const needsQrPayment = (isBank || isVietqr) && !(result.status === 'confirmed' || result.payment_status === 'paid');
 
   const [isPaid, setIsPaid] = useState(result.status === 'confirmed' || result.payment_status === 'paid');
 
@@ -54,19 +55,19 @@ function SuccessScreen({ result }) {
         <div className="checkout-layout">
           {/* Left Column */}
           <div className="checkout-left">
-            <div className="checkout-block success-header-block" style={{ background: isPaid ? '#e8f5e9' : (isCOD ? '#fff8e1' : '#fff') }}>
+            <div className="checkout-block success-header-block" style={{ background: isPaid ? '#e8f5e9' : (needsQrPayment ? '#fff8e1' : '#fff') }}>
               <span className={`status-badge ${isPaid ? 'paid' : (!isCOD ? '' : '')}`}>
-                {isPaid ? 'Đã thanh toán' : (isCOD ? 'Chờ xác nhận' : 'Chờ thanh toán')}
+                {isPaid ? 'Đã thanh toán' : (needsQrPayment ? 'Chờ quét QR' : (isCOD ? 'Chờ xác nhận' : 'Chờ thanh toán'))}
               </span>
               <h2>Đơn hàng #{result.code}</h2>
               <div className="success-header-notice" style={{ color: isPaid ? '#2e7d32' : '#111' }}>
-                <span style={{ fontSize: 18 }}>✓</span> {isPaid ? 'Thanh toán thành công' : 'Đặt hàng thành công'}
+                <span style={{ fontSize: 18 }}>✓</span> {isPaid ? 'Thanh toán thành công' : (needsQrPayment ? 'Quét mã QR để thanh toán' : 'Đặt hàng thành công')}
               </div>
             </div>
 
             <div className="checkout-block">
               <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 12 }}>
-                {isCOD ? 'Thanh toán khi nhận hàng' : 'Chờ thanh toán'}
+                {needsQrPayment ? 'Thanh toán qua QR' : (isCOD ? 'Thanh toán khi nhận hàng' : 'Chờ thanh toán')}
               </h3>
               <table className="payment-details-table">
                 <tbody>
@@ -83,10 +84,13 @@ function SuccessScreen({ result }) {
                 </tbody>
               </table>
 
-              {(!isPaid && (isBank || isVietqr)) && (
+              {needsQrPayment && (
                 <div style={{ marginTop: 16 }}>
-                  <button className="btn-login-prompt" style={{ width: '100%', marginBottom: 16 }}>Thanh toán</button>
-                  <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, padding: 12 }}>
+                  <div style={{ border: '1px solid #e0e0e0', borderRadius: 12, padding: 16, background: '#fffdf5' }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 10, color: '#c92127' }}>Quét mã QR để hoàn tất thanh toán</div>
+                    <div style={{ fontSize: 13, color: '#555', marginBottom: 16, lineHeight: 1.5 }}>
+                      Mở app ngân hàng và quét mã bên dưới, hoặc chuyển khoản đúng số tiền và nội dung đơn hàng để hệ thống tự động xác nhận.
+                    </div>
                     <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Nội dung chuyển khoản</div>
                     <table className="payment-details-table">
                       <tbody>
@@ -98,9 +102,14 @@ function SuccessScreen({ result }) {
                       </tbody>
                     </table>
                     {qrUrl && (
-                      <div className="qr-code-box">
+                      <div className="qr-code-box" style={{ marginTop: 16 }}>
                         <img src={qrUrl} alt="VietQR" />
                         <span style={{ fontSize: 12, color: '#01579b', fontWeight: 600 }}>Quét mã Napas 247</span>
+                      </div>
+                    )}
+                    {!qrUrl && (
+                      <div style={{ marginTop: 16, padding: 16, borderRadius: 10, background: '#f5f5f5', color: '#666', fontSize: 13 }}>
+                        Đơn hàng chuyển khoản ngân hàng sẽ được xác nhận sau khi hệ thống nhận được giao dịch.
                       </div>
                     )}
                   </div>
@@ -108,7 +117,7 @@ function SuccessScreen({ result }) {
               )}
             </div>
 
-            {(!isPaid && (isBank || isVietqr)) && (
+            {needsQrPayment && (
               <div className="checkout-block">
                 <div className="upload-row">
                   <div>
