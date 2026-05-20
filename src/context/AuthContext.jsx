@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext(null);
-const API = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth`;
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://gobook.up.railway.app' : 'http://localhost:3001');
+const API = `${API_BASE}/api/auth`;
 const REQUEST_TIMEOUT_MS = 15000;
 
 async function parseJsonSafe(res) {

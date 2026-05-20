@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import './CheckoutPage.css';
 import AddressDropdown from '../components/AddressDropdown';
 
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://gobook.up.railway.app' : 'http://localhost:3001');
+
 function formatPrice(n) { return Number(n).toLocaleString('vi-VN') + '₫'; }
 
 // ── Success screen ──
@@ -19,7 +21,7 @@ function SuccessScreen({ result }) {
   useEffect(() => {
     if ((isBank || isVietqr) && !isPaid) {
       const interval = setInterval(() => {
-        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/payment/status/${result.code}`)
+        fetch(`${API_BASE}/api/payment/status/${result.code}`)
           .then(res => res.json())
           .then(data => {
             if (data.status === 'confirmed' || data.payment_status === 'paid') {
@@ -201,7 +203,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (user) {
-      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      fetch(`${API_BASE}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } })
         .then(r => r.json())
         .then(data => {
            if (Array.isArray(data) && data.length > 0) {
@@ -219,13 +221,13 @@ export default function CheckoutPage() {
     if (!newAddrForm.name || !newAddrForm.phone || !newAddrForm.address || !newAddrForm.city) return alert('Vui lòng điền đủ thông tin');
     const fullAddress = `${newAddrForm.address}, ${newAddrForm.city}`;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/me/addresses`, {
+      const res = await fetch(`${API_BASE}/api/users/me/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ name: newAddrForm.name, phone: newAddrForm.phone, address: fullAddress, is_default: newAddrForm.is_default ? 1 : 0 })
       });
       if (res.ok) {
-        const r2 = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } });
+        const r2 = await fetch(`${API_BASE}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } });
         const d2 = await r2.json();
         setAddresses(d2);
         const newest = d2.find(a => a.name === newAddrForm.name && a.address === fullAddress) || d2[d2.length - 1];
@@ -267,7 +269,7 @@ export default function CheckoutPage() {
     if (!voucher.trim()) return;
     setVoucherError('');
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/vouchers/validate`, {
+      const res = await fetch(`${API_BASE}/api/vouchers/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: voucher, order_value: total }),
@@ -306,7 +308,7 @@ export default function CheckoutPage() {
     setError('');
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/orders`, {
+      const res = await fetch(`${API_BASE}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
