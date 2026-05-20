@@ -413,50 +413,30 @@ router.post('/payos/create', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAYOS WEBHOOK – Per https://payos.vn/docs/du-lieu-tra-ve/webhook/
-// Signature verification: HMAC-SHA256(JSON.stringify(data.data), PAYOS_CHECKSUM_KEY)
 // POST /api/payment/payos/webhook
-router.post('/payos/webhook', (req, res) => {
+router.post('/payos/webhook', async (req, res) => {
   try {
-    const data = req.body;
-    console.log('PayOS Webhook received:', JSON.stringify(data).slice(0, 500));
-
-    // Verify signature per PayOS spec
-    const checksumKey = process.env.PAYOS_CHECKSUM_KEY;
-    if (checksumKey && data.data) {
-      const expected = crypto.createHmac('sha256', checksumKey).update(JSON.stringify(data.data)).digest('hex');
-      if (expected !== data.signature) {
-        console.warn('❌ PayOS signature mismatch', { expected, got: data.signature });
-        return res.status(400).json({ success: false, message: 'Invalid signature' });
-      }
-      console.log('✅ PayOS signature verified');
+    const payos = getPayOSClient();
+    if (!payos) {
+      return res.status(503).json({ success: false, message: 'PayOS chưa được cấu hình đầy đủ' });
     }
 
-    if (data.code !== '00') {
-      console.log('⚠️ PayOS webhook not success:', data.code, data.desc);
-      return res.json({ success: false, message: data.desc || 'Payment failed' });
+    const verified = await payos.webhooks.verify(req.body);
+    console.log('✅ PayOS webhook verified:', JSON.stringify(verified).slice(0, 500));
+
+    if (verified.code !== '00') {
+      console.log('⚠️ PayOS webhook not success:', verified.code, verified.desc);
+      return res.json({ success: false, message: verified.desc || 'Payment failed' });
     }
 
-    const paymentData = data.data;
-    if (!paymentData) {
-      console.log('PayOS webhook: missing data field');
-      return res.status(400).json({ success: false, message: 'Missing data' });
-    }
-
-    // Extract order code: first try orderCode field, then description
-    let orderCode = null;
-    if (paymentData.orderCode) {
-      orderCode = String(paymentData.orderCode);
-      // Also check description for MLB\d{8} pattern
-      const descMatch = String(paymentData.description || '').match(/MLB\d{8}/i);
-      if (descMatch) orderCode = descMatch[0].toUpperCase();
-    } else if (paymentData.description) {
-      const descMatch = String(paymentData.description).match(/MLB\d{8}/i);
-      if (descMatch) orderCode = descMatch[0].toUpperCase();
-    }
+    const orderCodeFromDescription = String(verified.description || '').match(/MLB\d{8}/i)?.[0]?.toUpperCase() || null;
+    const orderCodeFromNumber = String(verified.orderCode || '').trim()
+      ? `MLB${String(verified.orderCode).replace(/\D/g, '').padStart(8, '0')}`
+      : null;
+    const orderCode = orderCodeFromDescription || orderCodeFromNumber;
 
     if (!orderCode) {
-      console.log('PayOS webhook: no order code found in orderCode or description');
-      return res.json({ success: true, message: 'no order code found' });
+      return res.status(400).json({ success: false, message: 'Missing orderCode' });
     }
 
     const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
@@ -469,12 +449,10 @@ router.post('/payos/webhook', (req, res) => {
       return res.json({ success: true, message: 'Already confirmed' });
     }
 
-    // Parse amount from PayOS data
-    const amount = typeof paymentData.amount === 'number' ? paymentData.amount : Number(String(paymentData.amount || 0).replace(/[^0-9.-]+/g, '')) || 0;
-
+    const amount = Number(verified.amount || 0);
     const TOLERANCE = Number(process.env.WEBHOOK_AMOUNT_TOLERANCE) || 1000;
     if (amount >= (order.total - TOLERANCE)) {
-      const paymentRef = paymentData.reference || paymentData.transaction_id || paymentData.trans_id || paymentData.id || null;
+      const paymentRef = verified.reference || verified.transactionId || verified.paymentLinkId || null;
       db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentRef, orderCode);
       console.log(`✅ [PayOS Webhook] Confirmed: ${orderCode} amount:${amount} ref:${paymentRef}`);
       return res.json({ success: true, message: 'Payment confirmed', code: orderCode });
@@ -482,70 +460,6 @@ router.post('/payos/webhook', (req, res) => {
 
     console.log(`⚠️ [PayOS Webhook] Amount mismatch for ${orderCode}: got ${amount}, expected ${order.total}`);
     res.json({ success: false, message: 'Amount mismatch', got: amount, expected: order.total });
-  } catch (err) {
-    console.error('PayOS webhook error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Generic PayOS webhook handler (simulated) — flexible parsing like VietQR
-// ─────────────────────────────────────────────────────────────────────────────
-router.post('/payos/webhook', (req, res) => {
-  try {
-    const data = req.body;
-    console.log('PayOS Webhook received raw:', JSON.stringify(data).slice(0, 1000));
-
-    let events = [];
-    if (Array.isArray(data.data)) events = data.data;
-    else if (data.event) events = [data.event];
-    else if (data.data) events = [data.data];
-    else events = Array.isArray(data) ? data : [data];
-
-    const TOLERANCE = Number(process.env.WEBHOOK_AMOUNT_TOLERANCE) || 1000;
-    let success = 0;
-
-    for (const ev of events) {
-      try {
-        // Try common fields
-        const possible = [];
-        if (ev.description) possible.push(ev.description);
-        if (ev.note) possible.push(ev.note);
-        if (ev.order_code) possible.push(ev.order_code);
-        if (ev.orderId) possible.push(String(ev.orderId));
-        Object.values(ev).forEach(v => { if (typeof v === 'string') possible.push(v); });
-
-        const joined = possible.join(' ');
-        let match = joined.match(/MLB\d{8}/i);
-        if (!match) {
-          const alt = joined.match(/MLB\D*(\d{6,8})/i);
-          if (alt) match = ['MLB' + alt[1].padStart(8, '0')];
-        }
-        if (!match) continue;
-
-        const orderCode = match[0].toUpperCase();
-        const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
-        if (!order) continue;
-        if (order.status === 'confirmed') continue;
-
-        let amount = 0;
-        if (typeof ev.amount === 'number') amount = ev.amount;
-        else if (typeof ev.amount === 'string') amount = Number(ev.amount.replace(/[^0-9.-]+/g, '')) || 0;
-        else if (ev.total) amount = Number(String(ev.total).replace(/[^0-9.-]+/g, '')) || 0;
-
-        if (amount >= (order.total - TOLERANCE)) {
-          const ref = ev.transaction_id || ev.txn_id || ev.id || null;
-          db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(ref, orderCode);
-          console.log(`✅ [PayOS Webhook] Confirmed: ${orderCode} amount:${amount} ref:${ref}`);
-          success++;
-        } else {
-          console.log(`⚠️ [PayOS] Amount mismatch ${orderCode}: got ${amount}, expect ${order.total}`);
-        }
-      } catch (e) {
-        console.error('PayOS tx error:', e && e.message ? e.message : e);
-      }
-    }
-
-    res.json({ success: true, processed: success });
   } catch (err) {
     console.error('PayOS webhook error:', err);
     res.status(500).json({ error: 'Internal server error' });
