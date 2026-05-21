@@ -88,11 +88,16 @@ async function sendWithGmailFallback(currentTransport, payload) {
   } catch (err) {
     const host = getMailHost();
     const port = getMailPort();
-    const isTimeout = err?.code === 'ETIMEDOUT' || /timeout/i.test(err?.message || '');
+    const errCode = err?.code || '';
+    const errMsg = String(err?.message || '').toLowerCase();
+    
+    // Retry with alternate port for timeout/network errors on Gmail
     const isGmail = host === 'smtp.gmail.com';
+    const isNetworkError = errCode === 'ETIMEDOUT' || errCode === 'ENETUNREACH' || errCode === 'ECONNREFUSED';
+    
+    if (!isNetworkError || !isGmail) throw err;
 
-    if (!isTimeout || !isGmail) throw err;
-
+    console.warn(`⚠️ Network error (${errCode}), retrying with alternate port...`);
     const altPort = port === 465 ? 587 : 465;
     const altTransport = buildGmailTransportForPort(altPort);
     return await altTransport.sendMail(payload);

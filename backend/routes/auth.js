@@ -56,6 +56,8 @@ router.post('/register', async (req, res) => {
   const emailVerificationEnabled = REQUIRE_EMAIL_VERIFICATION;
   const mailReady = isMailConfigured();
 
+  console.log(`📝 Registration attempt: email=${email}, REQUIRE_EMAIL_VERIFICATION=${emailVerificationEnabled}, mailReady=${mailReady}`);
+
   // Validation: name no numbers
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Vui lòng điền đầy đủ thông tin' });
