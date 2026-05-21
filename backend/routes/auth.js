@@ -102,9 +102,10 @@ router.post('/register', async (req, res) => {
   if (emailVerificationEnabled) {
     // In strict mode, registration succeeds only when verification email is sent.
     try {
-      await sendVerificationEmail(email, name.trim(), verificationToken);
+      const mailResult = await sendVerificationEmail(email, name.trim(), verificationToken);
+      console.log(`✅ Verification email sent to ${email}, messageId: ${mailResult.messageId}`);
     } catch (mailErr) {
-      console.error('Mail send failed:', mailErr.message);
+      console.error('❌ Mail send failed for registration:', mailErr.message);
       db.prepare('DELETE FROM users WHERE id = ?').run(result.lastInsertRowid);
       return res.status(500).json({ error: mapMailError(mailErr) });
     }
@@ -198,6 +199,17 @@ router.post('/google', async (req, res) => {
 
     if (!user.is_active) return res.status(403).json({ error: 'Tài khoản đã bị khóa' });
 
+    // Send welcome email for new users (no password = new user)
+    if (!user.password_hash) {
+      try {
+        const mailResult = await sendWelcomeEmail(user.email, user.name);
+        console.log(`✅ Welcome email sent to new Google user ${user.email}, messageId: ${mailResult.messageId}`);
+      } catch (err) {
+        console.error(`⚠️ Welcome email failed for new Google user ${user.email}:`, err.message);
+        // Don't fail login, just log warning
+      }
+    }
+
     res.json({ token: signToken(user), user: safeUser(user), isNew: !user.password_hash });
   } catch (err) {
     const detail = err?.message || 'Unknown error';
@@ -237,7 +249,12 @@ router.get('/verify-email', async (req, res) => {
     .run(user.id);
 
   // Send welcome email
-  try { await sendWelcomeEmail(user.email, user.name); } catch {}
+  try { 
+    const mailResult = await sendWelcomeEmail(user.email, user.name);
+    console.log(`✅ Welcome email sent to ${user.email}, messageId: ${mailResult.messageId}`);
+  } catch (err) {
+    console.error(`⚠️ Welcome email failed for ${user.email}:`, err.message);
+  }
 
   const updatedUser = db.prepare('SELECT * FROM users WHERE id=?').get(user.id);
   res.json({
@@ -275,9 +292,10 @@ router.post('/resend-verification', async (req, res) => {
 
   try {
     await sendVerificationEmail(email, user.name, verificationToken);
+    console.log(`✅ Verification email resent to ${email}`);
     res.json({ success: true, message: 'Email xác nhận đã được gửi lại. Vui lòng kiểm tra hộp thư.' });
   } catch (err) {
-    console.error('Resend verification mail failed:', err.message);
+    console.error('❌ Resend verification mail failed:', err.message);
     res.status(500).json({ error: mapMailError(err) });
   }
 });

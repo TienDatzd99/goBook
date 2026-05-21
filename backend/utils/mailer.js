@@ -132,14 +132,15 @@ async function getTransporter() {
 
 // ── Send verification email ──
 async function sendVerificationEmail(to, name, token) {
-  let t = await getTransporter();
-  const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/xac-thuc-email?token=${token}`;
+  try {
+    let t = await getTransporter();
+    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/xac-thuc-email?token=${token}`;
 
-  const payload = {
-    from: getMailFrom(),
-    to,
-    subject: '✅ Xác nhận tài khoản - goBook',
-    html: `
+    const payload = {
+      from: getMailFrom(),
+      to,
+      subject: '✅ Xác nhận tài khoản - goBook',
+      html: `
 <!DOCTYPE html>
 <html>
 <head>
@@ -181,27 +182,32 @@ async function sendVerificationEmail(to, name, token) {
 </body>
 </html>
     `,
-  };
+    };
 
-  const info = await sendWithGmailFallback(t, payload);
+    const info = await sendWithGmailFallback(t, payload);
 
-  // In link preview trong console (dev mode)
-  const previewUrl = nodemailer.getTestMessageUrl(info);
-  if (previewUrl) {
-    console.log(`📧 [DEV] Xem email tại: ${previewUrl}`);
+    // In link preview trong console (dev mode)
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log(`📧 [DEV] Xem email xác nhận tại: ${previewUrl}`);
+    }
+
+    return { messageId: info.messageId, previewUrl };
+  } catch (err) {
+    console.error('❌ Gửi email xác nhận thất bại:', err.message);
+    throw err;
   }
-
-  return { messageId: info.messageId, previewUrl };
 }
 
 // ── Send welcome email after verification ──
 async function sendWelcomeEmail(to, name) {
-  let t = await getTransporter();
-  const payload = {
-    from: getMailFrom(),
-    to,
-    subject: '🎉 Chào mừng đến với goBook!',
-    html: `
+  try {
+    let t = await getTransporter();
+    const payload = {
+      from: getMailFrom(),
+      to,
+      subject: '🎉 Chào mừng đến với goBook!',
+      html: `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"/></head>
@@ -227,19 +233,29 @@ async function sendWelcomeEmail(to, name) {
 </body>
 </html>
     `,
-  };
+    };
 
-  await sendWithGmailFallback(t, payload);
+    const info = await sendWithGmailFallback(t, payload);
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log(`📧 [DEV] Xem email chào mừng tại: ${previewUrl}`);
+    }
+    return { messageId: info.messageId, previewUrl };
+  } catch (err) {
+    console.error('❌ Gửi email chào mừng thất bại:', err.message);
+    throw err;
+  }
 }
 
 // ── Send Custom AI Email (For Cancellations, Approvals, etc) ──
 async function sendAICustomEmail(to, name, subject, content) {
-  let t = await getTransporter();
-  const payload = {
-    from: getMailFrom(),
-    to,
-    subject: subject,
-    html: `
+  try {
+    let t = await getTransporter();
+    const payload = {
+      from: getMailFrom(),
+      to,
+      subject: subject,
+      html: `
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"/></head>
@@ -257,12 +273,17 @@ async function sendAICustomEmail(to, name, subject, content) {
 </body>
 </html>
     `,
-  };
+    };
 
-  const info = await sendWithGmailFallback(t, payload);
-  const previewUrl = nodemailer.getTestMessageUrl(info);
-  if (previewUrl) {
-    console.log(`📧 [DEV] Xem email AI tại: ${previewUrl}`);
+    const info = await sendWithGmailFallback(t, payload);
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log(`📧 [DEV] Xem email AI tại: ${previewUrl}`);
+    }
+    return { messageId: info.messageId, previewUrl };
+  } catch (err) {
+    console.error('❌ Gửi email tùy chỉnh thất bại:', err.message);
+    throw err;
   }
 }
 
