@@ -11,5 +11,11 @@
     "startCommand": "cd backend && npm start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 120
-  }
+  },
+  "volumes": [
+    {
+      "name": "database",
+      "mountPath": "/app/backend/data"
+    }
+  ]
 }
