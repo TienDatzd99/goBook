@@ -1,147 +1,69 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// ── Tạo transporter (dùng Gmail App Password hoặc Ethereal cho dev) ──
-let transporter = null;
-const MAIL_TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS || 30000);
+// ── Initialize Resend Client ──
+let resendClient = null;
 
-function getMailUser() {
-  return (process.env.MAIL_USER || '').trim();
-}
-
-function getMailPass() {
-  // Gmail app password is often copied with spaces every 4 chars.
-  return (process.env.MAIL_PASS || '').replace(/\s+/g, '');
+function getResendClient() {
+  if (resendClient) return resendClient;
+  
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  if (!apiKey || apiKey.includes('placeholder') || apiKey.includes('your_')) {
+    throw new Error('RESEND_API_KEY not configured');
+  }
+  
+  resendClient = new Resend(apiKey);
+  return resendClient;
 }
 
 function getMailFrom() {
-  const configured = (process.env.MAIL_FROM || '').trim();
-  if (configured) return configured;
-
-  const mailUser = getMailUser();
-  if (mailUser) return `goBook <${mailUser}>`;
-
-  return '"goBook" <noreply@minhlongbook.vn>';
+  // If custom from email is set, use it. Otherwise use Resend's default onboarding email.
+  const configured = (process.env.RESEND_FROM_EMAIL || '').trim();
+  if (configured && !configured.includes('placeholder') && !configured.includes('your_')) {
+    return configured;
+  }
+  
+  // Fallback to Resend's default onboarding email (works immediately)
+  return 'onboarding@resend.dev';
 }
 
-function hasMailCredentials() {
-  const mailUser = getMailUser();
-  const mailPass = getMailPass();
-  return Boolean(
-    mailUser &&
-    mailPass &&
-    !mailPass.includes('your_app_password')
-  );
+function isMailConfigured() {
+  try {
+    const apiKey = (process.env.RESEND_API_KEY || '').trim();
+    return apiKey && !apiKey.includes('placeholder') && !apiKey.includes('your_');
+  } catch {
+    return false;
+  }
 }
 
 function isProductionRuntime() {
   return process.env.NODE_ENV === 'production' || Boolean(process.env.RAILWAY_ENVIRONMENT);
 }
 
-function createSmtpTransport(config) {
-  return nodemailer.createTransport({
-    ...config,
-    family: 4,
-    connectionTimeout: MAIL_TIMEOUT_MS,
-    greetingTimeout: MAIL_TIMEOUT_MS,
-    socketTimeout: MAIL_TIMEOUT_MS,
-  });
-}
-
-function getMailHost() {
-  return (process.env.MAIL_HOST || 'smtp.gmail.com').trim();
-}
-
-function getMailPort() {
-  const parsed = Number(process.env.MAIL_PORT);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 587;
-}
-
-function getMailSecure(port) {
-  if (typeof process.env.MAIL_SECURE !== 'undefined') {
-    return String(process.env.MAIL_SECURE).toLowerCase() === 'true';
-  }
-  return Number(port) === 465;
-}
-
-function isMailConfigured() {
-  return hasMailCredentials() || !isProductionRuntime();
-}
-
-function buildGmailTransportForPort(port) {
-  const host = getMailHost();
-  const secure = getMailSecure(port);
-  return createSmtpTransport({
-    host,
-    port,
-    secure,
-    requireTLS: !secure,
-    auth: {
-      user: getMailUser(),
-      pass: getMailPass(),
-    },
-  });
-}
-
-async function sendWithGmailFallback(currentTransport, payload) {
-  try {
-    return await currentTransport.sendMail(payload);
-  } catch (err) {
-    const host = getMailHost();
-    const port = getMailPort();
-    const errCode = err?.code || '';
-    const errMsg = String(err?.message || '').toLowerCase();
-    
-    // Retry with alternate port for timeout/network errors on Gmail
-    const isGmail = host === 'smtp.gmail.com';
-    const isNetworkError = errCode === 'ETIMEDOUT' || errCode === 'ENETUNREACH' || errCode === 'ECONNREFUSED';
-    
-    if (!isNetworkError || !isGmail) throw err;
-
-    console.warn(`⚠️ Network error (${errCode}), retrying with alternate port...`);
-    const altPort = port === 465 ? 587 : 465;
-    const altTransport = buildGmailTransportForPort(altPort);
-    return await altTransport.sendMail(payload);
-  }
-}
-
 async function getTransporter() {
-  if (transporter) return transporter;
-
-  const hasCredentials = hasMailCredentials();
-
-  if (hasCredentials) {
-    const port = getMailPort();
-
-    // Production: Gmail SMTP
-    transporter = buildGmailTransportForPort(port);
-    console.log('📧 Mail: Using Gmail SMTP');
-  } else {
-    if (isProductionRuntime()) {
-      throw new Error('MAIL_NOT_CONFIGURED');
-    }
-
-    // Development: Ethereal (fake SMTP – emails viewable at ethereal.email)
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = createSmtpTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: { user: testAccount.user, pass: testAccount.pass },
-    });
-    console.log('📧 Mail: Using Ethereal (dev mode)');
-    console.log(`   Ethereal user: ${testAccount.user}`);
+  if (!isMailConfigured() && isProductionRuntime()) {
+    throw new Error('MAIL_NOT_CONFIGURED');
   }
-
-  return transporter;
+  return { sendMail: async () => ({ messageId: 'resend-client' }) };
 }
 
 // ── Send verification email ──
 async function sendVerificationEmail(to, name, token) {
   try {
-    let t = await getTransporter();
+    if (!isMailConfigured() && isProductionRuntime()) {
+      throw new Error('MAIL_NOT_CONFIGURED');
+    }
+
+    if (!isMailConfigured()) {
+      console.log('📧 [DEV] Mail not configured, skipping email send');
+      return { messageId: 'dev-' + Math.random().toString(36).substr(2, 9), previewUrl: null };
+    }
+
+    const resend = getResendClient();
     const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/xac-thuc-email?token=${token}`;
 
-    const payload = {
+    console.log(`📬 Sending verification email to ${to}...`);
+
+    const response = await resend.emails.send({
       from: getMailFrom(),
       to,
       subject: '✅ Xác nhận tài khoản - goBook',
@@ -186,20 +108,17 @@ async function sendVerificationEmail(to, name, token) {
   </div>
 </body>
 </html>
-    `,
-    };
+      `,
+    });
 
-    const info = await sendWithGmailFallback(t, payload);
-
-    // In link preview trong console (dev mode)
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log(`📧 [DEV] Xem email xác nhận tại: ${previewUrl}`);
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
     }
 
-    return { messageId: info.messageId, previewUrl };
+    console.log(`✅ Verification email sent to ${to}, messageId: ${response.data.id}`);
+    return { messageId: response.data.id, previewUrl: null };
   } catch (err) {
-    console.error('❌ Gửi email xác nhận thất bại:', err.message);
+    console.error(`❌ Gửi email xác nhận thất bại: ${err.message}`);
     throw err;
   }
 }
@@ -207,8 +126,16 @@ async function sendVerificationEmail(to, name, token) {
 // ── Send welcome email after verification ──
 async function sendWelcomeEmail(to, name) {
   try {
-    let t = await getTransporter();
-    const payload = {
+    if (!isMailConfigured()) {
+      console.log('📧 [DEV] Mail not configured, skipping email send');
+      return { messageId: 'dev-' + Math.random().toString(36).substr(2, 9), previewUrl: null };
+    }
+
+    const resend = getResendClient();
+
+    console.log(`📬 Sending welcome email to ${to}...`);
+
+    const response = await resend.emails.send({
       from: getMailFrom(),
       to,
       subject: '🎉 Chào mừng đến với goBook!',
@@ -237,17 +164,17 @@ async function sendWelcomeEmail(to, name) {
   </div>
 </body>
 </html>
-    `,
-    };
+      `,
+    });
 
-    const info = await sendWithGmailFallback(t, payload);
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log(`📧 [DEV] Xem email chào mừng tại: ${previewUrl}`);
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
     }
-    return { messageId: info.messageId, previewUrl };
+
+    console.log(`✅ Welcome email sent to ${to}, messageId: ${response.data.id}`);
+    return { messageId: response.data.id, previewUrl: null };
   } catch (err) {
-    console.error('❌ Gửi email chào mừng thất bại:', err.message);
+    console.error(`❌ Gửi email chào mừng thất bại: ${err.message}`);
     throw err;
   }
 }
@@ -255,8 +182,16 @@ async function sendWelcomeEmail(to, name) {
 // ── Send Custom AI Email (For Cancellations, Approvals, etc) ──
 async function sendAICustomEmail(to, name, subject, content) {
   try {
-    let t = await getTransporter();
-    const payload = {
+    if (!isMailConfigured()) {
+      console.log('📧 [DEV] Mail not configured, skipping email send');
+      return { messageId: 'dev-' + Math.random().toString(36).substr(2, 9), previewUrl: null };
+    }
+
+    const resend = getResendClient();
+
+    console.log(`📬 Sending custom email to ${to}: "${subject}"...`);
+
+    const response = await resend.emails.send({
       from: getMailFrom(),
       to,
       subject: subject,
@@ -277,17 +212,17 @@ async function sendAICustomEmail(to, name, subject, content) {
   </div>
 </body>
 </html>
-    `,
-    };
+      `,
+    });
 
-    const info = await sendWithGmailFallback(t, payload);
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log(`📧 [DEV] Xem email AI tại: ${previewUrl}`);
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
     }
-    return { messageId: info.messageId, previewUrl };
+
+    console.log(`✅ Custom email sent to ${to}, messageId: ${response.data.id}`);
+    return { messageId: response.data.id, previewUrl: null };
   } catch (err) {
-    console.error('❌ Gửi email tùy chỉnh thất bại:', err.message);
+    console.error(`❌ Gửi email tùy chỉnh thất bại: ${err.message}`);
     throw err;
   }
 }
