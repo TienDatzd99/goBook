@@ -8,7 +8,7 @@ const { sendVerificationEmail, sendWelcomeEmail, isMailConfigured } = require('.
 const router = express.Router();
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
+const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION === 'true';
 
 // ── Helper: sign JWT ──
 function signToken(user) {
