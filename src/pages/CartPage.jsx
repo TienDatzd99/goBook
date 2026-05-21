@@ -34,7 +34,7 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     if (selectedIds.length === 0) return addToast('Vui lòng chọn ít nhất một sản phẩm', 'error');
-    navigate('/thanh-toan', { state: { selectedIds } });
+    navigate('/thanh-toan', { state: { selectedIds, from: '/gio-hang' } });
   };
 
   if (items.length === 0) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import ProductCard from '../components/ProductCard/ProductCard';
 import { BookOpen, Maximize, ShoppingCart, CheckCircle, User } from 'lucide-react';
@@ -68,6 +68,7 @@ function ReadPreviewModal({ product, onClose }) {
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const product = getProductBySlug(slug);
   const { addItem } = useCart();
 
@@ -272,14 +273,17 @@ export default function ProductDetailPage() {
                   </>
                 )}
               </button>
-              <Link
-                to="/thanh-toan"
+              <button
                 className="btn btn-accent btn-lg"
-                onClick={() => addItem(product, qty)}
+                onClick={() => {
+                  addItem(product, qty);
+                  navigate('/thanh-toan', { state: { from: `/san-pham/${slug}` } });
+                }}
                 id="buy-now-btn"
+                style={{ textDecoration: 'none', cursor: 'pointer' }}
               >
                 Mua ngay
-              </Link>
+              </button>
             </div>
 
             {/* Guarantees */}

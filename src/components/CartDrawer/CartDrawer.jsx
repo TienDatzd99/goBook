@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { ShoppingCart, PartyPopper } from 'lucide-react';
 import './CartDrawer.css';
@@ -6,11 +6,29 @@ import './CartDrawer.css';
 function formatPrice(n) { return n.toLocaleString('vi-VN') + '₫'; }
 
 export default function CartDrawer() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const {
     items, isOpen, setIsOpen,
     removeItem, updateQuantity,
     total, shippingFee, grandTotal, freeShipThreshold
   } = useCart();
+
+  // Detect current page to set as 'from' for checkout back button
+  const getCurrentPageForBackLink = () => {
+    const path = location.pathname;
+    // Map common paths to user-friendly back navigation
+    if (path === '/') return '/';
+    if (path === '/gio-hang') return '/gio-hang';
+    if (path.startsWith('/danh-muc/')) return path; // Category page
+    if (path.startsWith('/tim-kiem')) return '/tim-kiem';
+    return '/'; // Default to home
+  };
+
+  const handleCheckout = () => {
+    setIsOpen(false);
+    navigate('/thanh-toan', { state: { from: getCurrentPageForBackLink() } });
+  };
 
   if (!isOpen) return null;
 
@@ -127,14 +145,14 @@ export default function CartDrawer() {
             >
               Xem giỏ hàng
             </Link>
-            <Link
-              to="/thanh-toan"
+            <button
+              onClick={handleCheckout}
               className="btn btn-primary btn-lg w-full"
-              onClick={() => setIsOpen(false)}
+              style={{ textDecoration: 'none', cursor: 'pointer', border: 'none', background: '#c92127', color: '#fff' }}
               id="checkout-btn"
             >
               Thanh toán ngay →
-            </Link>
+            </button>
           </div>
         )}
       </div>

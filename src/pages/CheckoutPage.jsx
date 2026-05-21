@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { ArrowLeft } from 'lucide-react';
 import './CheckoutPage.css';
 import AddressDropdown from '../components/AddressDropdown';
 
@@ -204,7 +205,7 @@ function SuccessScreen({ result }) {
   );
 }
 
-function QrPaymentScreen({ result }) {
+function QrPaymentScreen({ result, onBackEdit }) {
   const isBank = result.payment_method === 'bank';
   const isVietqr = result.payment_method === 'vietqr';
   const isPaid = result.status === 'confirmed' || result.payment_status === 'paid';
@@ -271,7 +272,27 @@ function QrPaymentScreen({ result }) {
   return (
     <div className="checkout-page">
       <div className="checkout-container">
-        <div className="checkout-logo">
+        <div className="checkout-logo" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {!paid && (
+            <button 
+              onClick={() => onBackEdit && onBackEdit()}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8,
+                color: '#c92127',
+                fontWeight: 600,
+                fontSize: 14,
+                padding: 0
+              }}
+              title="Quay lại để chỉnh sửa"
+            >
+              <ArrowLeft size={18} /> Quay lại
+            </button>
+          )}
           <Link to="/" style={{ textDecoration: 'none', color: '#c92127', fontSize: 24, fontWeight: 800 }}>goBook</Link>
         </div>
 
@@ -349,13 +370,22 @@ function QrPaymentScreen({ result }) {
                   <p style={{ color: '#555', marginBottom: 16 }}>
                     Đơn hàng của bạn đã được xác nhận. Hệ thống đang chuẩn bị hàng để giao đến bạn.
                   </p>
-                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                     <Link to="/" className="btn-place-order" style={{ textDecoration: 'none', display: 'inline-block', background: '#c92127', color: '#fff', padding: '10px 24px', borderRadius: 8, fontWeight: 600 }}>
                       ← Quay về trang chủ
                     </Link>
                     <Link to="/tra-cuu-don-hang" className="btn-place-order" style={{ textDecoration: 'none', display: 'inline-block', background: '#f5f5f5', color: '#333', padding: '10px 24px', borderRadius: 8, fontWeight: 600 }}>
                       Theo dõi đơn hàng →
                     </Link>
+                    <button 
+                      onClick={() => {
+                        clearCart();
+                        navigate('/');
+                      }}
+                      style={{ textDecoration: 'none', display: 'inline-block', background: '#fff', color: '#c92127', padding: '10px 24px', borderRadius: 8, fontWeight: 600, border: '2px solid #c92127', cursor: 'pointer' }}
+                    >
+                      🛍️ Tiếp tục mua hàng
+                    </button>
                   </div>
                 </div>
               </div>
@@ -429,9 +459,13 @@ function QrPaymentScreen({ result }) {
 export default function CheckoutPage() {
   const { items: allItems, freeShipThreshold, removeItems, clearCart } = useCart();
   const { user, getToken } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const selectedIds = location.state?.selectedIds;
+  const fromPage = location.state?.from; // Lưu trang trước (ví dụ: /gio-hang, /product/xyz)
+  const paymentOrderId = location.state?.paymentOrderId; // Nếu từ payment screen, user muốn tạo order mới
+  
   const items = selectedIds ? allItems.filter(i => selectedIds.includes(i.id)) : allItems;
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const DEFAULT_SHIPPING_FEE = parseInt(import.meta.env.VITE_DEFAULT_SHIPPING_FEE || '30000', 10);
@@ -500,7 +534,15 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [orderResult, setOrderResult] = useState(null);
+  const [isEditingFromPayment, setIsEditingFromPayment] = useState(false);
   const creatingPayosLinkRef = useRef(false); // Prevent double-call to /payos/create
+
+  // Nếu từ payment screen, flag là đang edit
+  useEffect(() => {
+    if (paymentOrderId && orderResult === null) {
+      setIsEditingFromPayment(true);
+    }
+  }, [paymentOrderId, orderResult]);
 
   const discount = voucherResult?.discount || 0;
   // Use subtotal BEFORE discount to determine free shipping (keep behavior consistent with cart)
@@ -643,8 +685,15 @@ export default function CheckoutPage() {
   };
 
   if (orderResult) {
+    const handleBackEdit = () => {
+      // User quay lại từ payment screen, reset orderResult để quay lại form
+      setOrderResult(null);
+      setIsEditingFromPayment(true);
+      window.scrollTo(0, 0);
+    };
+    
     if (orderResult.payment_method === 'bank' || orderResult.payment_method === 'vietqr') {
-      return <QrPaymentScreen result={orderResult} />;
+      return <QrPaymentScreen result={orderResult} onBackEdit={handleBackEdit} />;
     }
     return <SuccessScreen result={orderResult} />;
   }
@@ -661,7 +710,27 @@ export default function CheckoutPage() {
   return (
     <div className="checkout-page">
       <div className="checkout-container">
-        <div className="checkout-logo">
+        <div className="checkout-logo" style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'flex-start' }}>
+          {fromPage && (
+            <button 
+              onClick={() => navigate(fromPage)}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 8,
+                color: '#c92127',
+                fontWeight: 600,
+                fontSize: 14,
+                padding: 0
+              }}
+              title="Quay lại"
+            >
+              <ArrowLeft size={18} /> Quay lại
+            </button>
+          )}
           <Link to="/" style={{ textDecoration: 'none', color: '#c92127', fontSize: 24, fontWeight: 800 }}>goBook</Link>
         </div>
         
