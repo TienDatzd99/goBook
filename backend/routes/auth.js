@@ -104,11 +104,17 @@ router.post('/register', async (req, res) => {
   if (emailVerificationEnabled) {
     // In strict mode, registration succeeds only when verification email is sent.
     try {
+      console.log(`📬 Sending verification email to ${email}...`);
       const mailResult = await sendVerificationEmail(email, name.trim(), verificationToken);
       console.log(`✅ Verification email sent to ${email}, messageId: ${mailResult.messageId}`);
     } catch (mailErr) {
-      console.error('❌ Mail send failed for registration:', mailErr.message);
-      db.prepare('DELETE FROM users WHERE id = ?').run(result.lastInsertRowid);
+      console.error(`❌ Mail send failed for registration: ${mailErr.message}`);
+      try {
+        const deleteResult = db.prepare('DELETE FROM users WHERE id = ?').run(result.lastInsertRowid);
+        console.log(`🗑️ Deleted user (id=${result.lastInsertRowid}) due to email failure. Changes: ${deleteResult.changes}`);
+      } catch (deleteErr) {
+        console.error(`⚠️ Failed to delete user: ${deleteErr.message}`);
+      }
       return res.status(500).json({ error: mapMailError(mailErr) });
     }
   }
