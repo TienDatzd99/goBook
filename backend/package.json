@@ -1,6 +1,6 @@
 {
   "name": "minhlongbook-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backend API for goBook e-commerce",
   "main": "server.js",
   "scripts": {
@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.5",
     "qs": "^6.15.0",
+    "resend": "^6.12.3",
     "vnpay": "^2.5.0"
   }
 }
