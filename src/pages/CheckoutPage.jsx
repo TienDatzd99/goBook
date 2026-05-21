@@ -17,7 +17,7 @@ function buildVietQrUrl(orderCode, amount) {
 }
 
 // ── Success screen ──
-function SuccessScreen({ result }) {
+function SuccessScreen({ result, onContinueShopping }) {
   const isCOD = result.payment_method === 'cod';
   const isBank = result.payment_method === 'bank';
   const isMomo = result.payment_method === 'momo';
@@ -379,7 +379,7 @@ function QrPaymentScreen({ result, onBackEdit }) {
                     </Link>
                     <button 
                       onClick={() => {
-                        clearCart();
+                        onContinueShopping?.();
                         navigate('/');
                       }}
                       style={{ textDecoration: 'none', display: 'inline-block', background: '#fff', color: '#c92127', padding: '10px 24px', borderRadius: 8, fontWeight: 600, border: '2px solid #c92127', cursor: 'pointer' }}
@@ -674,9 +674,6 @@ export default function CheckoutPage() {
 
       setOrderResult(data);
 
-      // Remove checked out items after we set orderResult so UI can still show snapshot_items
-      if (selectedIds) removeItems(selectedIds);
-      else clearCart();
     } catch {
       setError('Lỗi kết nối. Vui lòng thử lại.');
     } finally {
@@ -691,11 +688,17 @@ export default function CheckoutPage() {
       setIsEditingFromPayment(true);
       window.scrollTo(0, 0);
     };
+
+    const handleContinueShopping = () => {
+      // Clear cart items when user continues shopping after success
+      if (selectedIds) removeItems(selectedIds);
+      else clearCart();
+    };
     
     if (orderResult.payment_method === 'bank' || orderResult.payment_method === 'vietqr') {
       return <QrPaymentScreen result={orderResult} onBackEdit={handleBackEdit} />;
     }
-    return <SuccessScreen result={orderResult} />;
+    return <SuccessScreen result={orderResult} onContinueShopping={handleContinueShopping} />;
   }
 
   if (items.length === 0) {
