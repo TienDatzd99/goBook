@@ -481,6 +481,33 @@ export default function CheckoutPage() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [newAddressMode, setNewAddressMode] = useState(false);
   const [newAddrForm, setNewAddrForm] = useState({ name: '', phone: '', address: '', is_default: false });
+  const [addrErrors, setAddrErrors] = useState({});
+
+  // Validation functions for address
+  const validateAddrName = (name) => {
+    if (!name.trim()) return 'Vui lòng nhập tên người nhận';
+    if (!/^[a-zA-ZÀ-ỿ\s]+$/.test(name)) return 'Tên không được chứa số hoặc ký tự đặc biệt';
+    if (name.trim().length < 2) return 'Tên phải có ít nhất 2 ký tự';
+    return '';
+  };
+
+  const validateAddrPhone = (phone) => {
+    if (!phone.trim()) return 'Vui lòng nhập số điện thoại';
+    if (!/^0[0-9]{9}$/.test(phone.replace(/\s/g, ''))) return 'Số điện thoại phải có 10 chữ số, bắt đầu từ 0';
+    return '';
+  };
+
+  const handleAddrNameChange = (e) => {
+    const value = e.target.value;
+    setNewAddrForm({...newAddrForm, name: value});
+    if (addrErrors.name) setAddrErrors({...addrErrors, name: validateAddrName(value)});
+  };
+
+  const handleAddrPhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setNewAddrForm({...newAddrForm, phone: value});
+    if (addrErrors.phone) setAddrErrors({...addrErrors, phone: validateAddrPhone(value)});
+  };
 
   useEffect(() => {
     if (user) {
@@ -499,7 +526,23 @@ export default function CheckoutPage() {
 
   const handleAddNewAddress = async (e) => {
     e.preventDefault();
-    if (!newAddrForm.name || !newAddrForm.phone || !newAddrForm.address || !newAddrForm.city) return alert('Vui lòng điền đủ thông tin');
+    
+    // Validate all fields
+    const nameError = validateAddrName(newAddrForm.name);
+    const phoneError = validateAddrPhone(newAddrForm.phone);
+    
+    const newErrors = {};
+    if (nameError) newErrors.name = nameError;
+    if (phoneError) newErrors.phone = phoneError;
+    if (!newAddrForm.address || newAddrForm.address.trim().length < 5) newErrors.address = 'Địa chỉ phải có ít nhất 5 ký tự';
+    if (!newAddrForm.city) newErrors.city = 'Vui lòng chọn tỉnh/thành phố';
+    
+    if (Object.keys(newErrors).length > 0) {
+      setAddrErrors(newErrors);
+      alert('Vui lòng sửa các lỗi trên form');
+      return;
+    }
+
     const fullAddress = `${newAddrForm.address}, ${newAddrForm.city}`;
     try {
       const res = await fetch(`${API_BASE}/api/users/me/addresses`, {
@@ -515,6 +558,7 @@ export default function CheckoutPage() {
         if (newest) setSelectedAddressId(newest.id);
         setNewAddressMode(false);
         setNewAddrForm({ name: '', phone: '', address: '', city: '', is_default: false });
+        setAddrErrors({});
         setShowAddressModal(false);
       } else {
         const err = await res.json();
@@ -922,23 +966,50 @@ export default function CheckoutPage() {
             {newAddressMode ? (
               <form onSubmit={handleAddNewAddress}>
                 <div className="form-group">
-                  <input className="form-control" placeholder="Họ và tên" value={newAddrForm.name} onChange={e => setNewAddrForm({...newAddrForm, name: e.target.value})} required />
+                  <input 
+                    className="form-control" 
+                    placeholder="Họ và tên (không chứa số hoặc ký tự đặc biệt)" 
+                    value={newAddrForm.name} 
+                    onChange={handleAddrNameChange}
+                    required 
+                  />
+                  {addrErrors.name && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.name}</span>}
                 </div>
                 <div className="form-group">
-                  <input className="form-control" type="tel" placeholder="Số điện thoại" value={newAddrForm.phone} onChange={e => setNewAddrForm({...newAddrForm, phone: e.target.value})} required />
+                  <input 
+                    className="form-control" 
+                    type="tel" 
+                    placeholder="0xxxxxxxxx (10 chữ số)" 
+                    value={newAddrForm.phone} 
+                    onChange={handleAddrPhoneChange}
+                    required 
+                    maxLength="10"
+                  />
+                  {addrErrors.phone && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.phone}</span>}
                 </div>
                 <div className="form-group">
-                  <input className="form-control" placeholder="Địa chỉ cụ thể (Số nhà, tòa nhà)" value={newAddrForm.address} onChange={e => setNewAddrForm({...newAddrForm, address: e.target.value})} required />
+                  <input 
+                    className="form-control" 
+                    placeholder="Địa chỉ cụ thể (Số nhà, tòa nhà)" 
+                    value={newAddrForm.address} 
+                    onChange={e => setNewAddrForm({...newAddrForm, address: e.target.value})} 
+                    required 
+                  />
+                  {addrErrors.address && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.address}</span>}
                 </div>
                 <div className="form-group">
                   <AddressDropdown value={newAddrForm.city || ''} onChange={val => setNewAddrForm({...newAddrForm, city: val})} />
+                  {addrErrors.city && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.city}</span>}
                 </div>
                 <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="checkbox" id="modal-is-default" checked={newAddrForm.is_default} onChange={e => setNewAddrForm({...newAddrForm, is_default: e.target.checked})} style={{ width: 'auto', accentColor: '#c92127' }} />
                   <label htmlFor="modal-is-default" style={{ margin: 0, fontSize: 14 }}>Đặt làm địa chỉ mặc định</label>
                 </div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-                  <button type="button" className="btn-login-prompt" style={{ flex: 1, textAlign: 'center' }} onClick={() => setNewAddressMode(false)}>Hủy</button>
+                  <button type="button" className="btn-login-prompt" style={{ flex: 1, textAlign: 'center' }} onClick={() => {
+                    setNewAddressMode(false);
+                    setAddrErrors({});
+                  }}>Hủy</button>
                   <button type="submit" className="btn-apply" style={{ flex: 1, padding: '12px 16px' }}>Lưu địa chỉ</button>
                 </div>
               </form>

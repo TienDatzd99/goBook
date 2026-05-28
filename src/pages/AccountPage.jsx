@@ -205,11 +205,65 @@ function AddressesTab({ getToken, addToast }) {
 function AddressModal({ onClose, onSuccess, initialData, getToken, addToast }) {
   const [formData, setFormData] = useState(initialData || { name: '', phone: '', address: '', is_default: false });
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Validation functions
+  const validateName = (name) => {
+    if (!name.trim()) return 'Vui lòng nhập tên người nhận';
+    if (!/^[a-zA-ZÀ-ỿ\s]+$/.test(name)) return 'Tên không được chứa số hoặc ký tự đặc biệt';
+    if (name.trim().length < 2) return 'Tên phải có ít nhất 2 ký tự';
+    return '';
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone.trim()) return 'Vui lòng nhập số điện thoại';
+    if (!/^0[0-9]{9}$/.test(phone.replace(/\s/g, ''))) return 'Số điện thoại phải có 10 chữ số, bắt đầu từ 0';
+    return '';
+  };
+
+  const validateAddress = (address) => {
+    if (!address.trim()) return 'Vui lòng nhập địa chỉ cụ thể';
+    if (address.trim().length < 5) return 'Địa chỉ phải có ít nhất 5 ký tự';
+    return '';
+  };
+
+  const handleNameChange = (e) => {
+    const value = e.target.value;
+    setFormData({...formData, name: value});
+    if (errors.name) setErrors({...errors, name: validateName(value)});
+  };
+
+  const handlePhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    setFormData({...formData, phone: value});
+    if (errors.phone) setErrors({...errors, phone: validatePhone(value)});
+  };
+
+  const handleAddressChange = (e) => {
+    const value = e.target.value;
+    setFormData({...formData, address: value});
+    if (errors.address) setErrors({...errors, address: validateAddress(value)});
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.address) return addToast('Vui lòng điền đủ thông tin', 'error');
     
+    // Validate all fields
+    const nameError = validateName(formData.name);
+    const phoneError = validatePhone(formData.phone);
+    const addressError = validateAddress(formData.address);
+
+    const newErrors = {};
+    if (nameError) newErrors.name = nameError;
+    if (phoneError) newErrors.phone = phoneError;
+    if (addressError) newErrors.address = addressError;
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      addToast('Vui lòng sửa các lỗi trên form', 'error');
+      return;
+    }
+
     setSaving(true);
     const method = initialData ? 'PUT' : 'POST';
     const url = initialData ? `${API}/users/me/addresses/${initialData.id}` : `${API}/users/me/addresses`;
@@ -238,15 +292,36 @@ function AddressModal({ onClose, onSuccess, initialData, getToken, addToast }) {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Tên người nhận</label>
-            <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+            <input 
+              type="text" 
+              value={formData.name} 
+              onChange={handleNameChange}
+              placeholder="Nhập họ và tên (không chứa số hoặc ký tự đặc biệt)"
+              required 
+            />
+            {errors.name && <span style={{color: '#d32f2f', fontSize: '12px'}}>{errors.name}</span>}
           </div>
           <div className="form-group">
             <label>Số điện thoại</label>
-            <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required />
+            <input 
+              type="tel" 
+              value={formData.phone} 
+              onChange={handlePhoneChange}
+              placeholder="0xxxxxxxxx (10 chữ số)"
+              required 
+              maxLength="10"
+            />
+            {errors.phone && <span style={{color: '#d32f2f', fontSize: '12px'}}>{errors.phone}</span>}
           </div>
           <div className="form-group">
             <label>Địa chỉ cụ thể (Số nhà, Phường/Xã, Quận/Huyện, Tỉnh/TP)</label>
-            <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} required />
+            <input 
+              type="text" 
+              value={formData.address} 
+              onChange={handleAddressChange}
+              required 
+            />
+            {errors.address && <span style={{color: '#d32f2f', fontSize: '12px'}}>{errors.address}</span>}
           </div>
           <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
             <input 
