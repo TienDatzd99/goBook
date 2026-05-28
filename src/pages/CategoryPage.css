@@ -78,3 +78,127 @@
   font-family: var(--font);
 }
 .sort-select:focus { border-color: var(--primary); }
+
+/* Price Range Slider */
+.price-range-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.price-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: var(--font);
+  text-align: center;
+}
+
+.price-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(201, 33, 39, 0.1);
+}
+
+.price-separator {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.price-range-slider-container {
+  position: relative;
+  padding: 12px 0;
+}
+
+.price-range-slider {
+  position: relative;
+  height: 6px;
+}
+
+.price-range-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.price-range-fill {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.price-range-input {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-appearance: none;
+  background: transparent;
+  z-index: 5;
+}
+
+.price-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  pointer-events: all;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s;
+}
+
+.price-range-input::-webkit-slider-thumb:hover {
+  box-shadow: 0 2px 8px rgba(201, 33, 39, 0.3);
+}
+
+.price-range-input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  pointer-events: all;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: none;
+  transition: box-shadow 0.2s;
+}
+
+.price-range-input::-moz-range-thumb:hover {
+  box-shadow: 0 2px 8px rgba(201, 33, 39, 0.3);
+}
+
+.price-range-input::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+
+.price-range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}

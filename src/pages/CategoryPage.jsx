@@ -14,13 +14,8 @@ const SORT_OPTIONS = [
   { value: 'rating', label: 'Đánh giá cao nhất' },
 ];
 
-const PRICE_RANGES = [
-  { label: 'Dưới 50.000₫', min: 0, max: 50000 },
-  { label: '50.000₫ - 100.000₫', min: 50000, max: 100000 },
-  { label: '100.000₫ - 200.000₫', min: 100000, max: 200000 },
-  { label: '200.000₫ - 500.000₫', min: 200000, max: 500000 },
-  { label: 'Trên 500.000₫', min: 500000, max: Infinity },
-];
+const MAX_PRICE = 1000000;
+const MIN_PRICE = 0;
 
 // Nhóm danh mục
 const BOOK_CATEGORIES = categories.filter(c => c.slug !== 'do-choi');
@@ -32,14 +27,16 @@ const SPECIAL_SLUGS = { 'sach-moi': true, 'ban-chay': true };
 export default function CategoryPage() {
   const { slug } = useParams();
   const [sort, setSort] = useState('default');
-  const [priceRange, setPriceRange] = useState(null);
+  const [priceMin, setPriceMin] = useState(MIN_PRICE);
+  const [priceMax, setPriceMax] = useState(MAX_PRICE);
   const [page, setPage] = useState(1);
   const PER_PAGE = 12;
 
   useEffect(() => {
     setPage(1);
     setSort('default');
-    setPriceRange(null);
+    setPriceMin(MIN_PRICE);
+    setPriceMax(MAX_PRICE);
   }, [slug]);
 
   // Tên trang
@@ -67,8 +64,8 @@ export default function CategoryPage() {
     filtered = products.filter(p => p.category === slug);
   }
 
-  if (priceRange) {
-    filtered = filtered.filter(p => p.price >= priceRange.min && p.price <= priceRange.max);
+  if (priceMin > MIN_PRICE || priceMax < MAX_PRICE) {
+    filtered = filtered.filter(p => p.price >= priceMin && p.price <= priceMax);
   }
   if (sort === 'price-asc')  filtered = [...filtered].sort((a, b) => a.price - b.price);
   else if (sort === 'price-desc') filtered = [...filtered].sort((a, b) => b.price - a.price);
@@ -157,27 +154,71 @@ export default function CategoryPage() {
             {/* Bộ lọc giá */}
             <div className="sidebar-widget">
               <h3 className="sidebar-title">Khoảng giá</h3>
-              <ul className="price-filter">
-                <li>
-                  <label className="radio-label">
-                    <input type="radio" name="price" checked={priceRange === null} onChange={() => setPriceRange(null)} />
-                    Tất cả
-                  </label>
-                </li>
-                {PRICE_RANGES.map((r, i) => (
-                  <li key={i}>
-                    <label className="radio-label">
-                      <input
-                        type="radio"
-                        name="price"
-                        checked={priceRange?.label === r.label}
-                        onChange={() => setPriceRange(r)}
-                      />
-                      {r.label}
-                    </label>
-                  </li>
-                ))}
-              </ul>
+              <div className="price-range-container">
+                <div className="price-range-inputs">
+                  <input
+                    type="text"
+                    placeholder="Từ"
+                    value={priceMin === 0 ? '' : priceMin.toLocaleString('vi-VN')}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+                      setPriceMin(Math.min(val, priceMax));
+                      setPage(1);
+                    }}
+                    className="price-input"
+                  />
+                  <span className="price-separator">-</span>
+                  <input
+                    type="text"
+                    placeholder="Đến"
+                    value={priceMax === MAX_PRICE ? '' : priceMax.toLocaleString('vi-VN')}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value.replace(/\D/g, '')) || MAX_PRICE;
+                      setPriceMax(Math.max(val, priceMin));
+                      setPage(1);
+                    }}
+                    className="price-input"
+                  />
+                </div>
+                <div className="price-range-slider-container">
+                  <div className="price-range-slider">
+                    <input
+                      type="range"
+                      min={MIN_PRICE}
+                      max={MAX_PRICE}
+                      value={priceMin}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (val <= priceMax) {
+                          setPriceMin(val);
+                          setPage(1);
+                        }
+                      }}
+                      className="price-range-input price-range-min"
+                    />
+                    <input
+                      type="range"
+                      min={MIN_PRICE}
+                      max={MAX_PRICE}
+                      value={priceMax}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (val >= priceMin) {
+                          setPriceMax(val);
+                          setPage(1);
+                        }
+                      }}
+                      className="price-range-input price-range-max"
+                    />
+                    <div className="price-range-track"></div>
+                    <div className="price-range-fill"></div>
+                  </div>
+                </div>
+                <div className="price-range-labels">
+                  <span>{priceMin.toLocaleString('vi-VN')}₫</span>
+                  <span>{priceMax.toLocaleString('vi-VN')}₫</span>
+                </div>
+              </div>
             </div>
           </aside>
 
