@@ -201,22 +201,13 @@ router.post('/google', async (req, res) => {
       `).run(name, email.toLowerCase(), googleId, picture || '');
       user = db.prepare('SELECT * FROM users WHERE id=?').get(result.lastInsertRowid);
 
-      // Send welcome email
-      try { await sendWelcomeEmail(email, name); } catch {}
+      // Send welcome email (fire-and-forget, don't await)
+      sendWelcomeEmail(email, name)
+        .then((result) => console.log(`✅ Welcome email sent to new Google user ${email}`))
+        .catch((err) => console.error(`⚠️ Welcome email failed: ${err.message}`));
     }
 
     if (!user.is_active) return res.status(403).json({ error: 'Tài khoản đã bị khóa' });
-
-    // Send welcome email for new users (no password = new user)
-    if (!user.password_hash) {
-      try {
-        const mailResult = await sendWelcomeEmail(user.email, user.name);
-        console.log(`✅ Welcome email sent to new Google user ${user.email}, messageId: ${mailResult.messageId}`);
-      } catch (err) {
-        console.error(`⚠️ Welcome email failed for new Google user ${user.email}:`, err.message);
-        // Don't fail login, just log warning
-      }
-    }
 
     res.json({ token: signToken(user), user: safeUser(user), isNew: !user.password_hash });
   } catch (err) {
