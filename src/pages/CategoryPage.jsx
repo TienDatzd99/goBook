@@ -14,8 +14,13 @@ const SORT_OPTIONS = [
   { value: 'rating', label: 'Đánh giá cao nhất' },
 ];
 
-const MAX_PRICE = 1000000;
-const MIN_PRICE = 0;
+const PRICE_RANGES = [
+  { label: 'Dưới 50.000₫', min: 0, max: 50000 },
+  { label: '50.000₫ - 100.000₫', min: 50000, max: 100000 },
+  { label: '100.000₫ - 200.000₫', min: 100000, max: 200000 },
+  { label: '200.000₫ - 500.000₫', min: 200000, max: 500000 },
+  { label: 'Trên 500.000₫', min: 500000, max: Infinity },
+];
 
 // Nhóm danh mục
 const BOOK_CATEGORIES = categories.filter(c => c.slug !== 'do-choi');
@@ -23,6 +28,9 @@ const TOY_CATEGORIES  = categories.filter(c => c.slug === 'do-choi');
 
 // Slug đặc biệt
 const SPECIAL_SLUGS = { 'sach-moi': true, 'ban-chay': true };
+
+const MIN_PRICE = 0;
+const MAX_PRICE = 1000000;
 
 export default function CategoryPage() {
   const { slug } = useParams();
@@ -64,9 +72,7 @@ export default function CategoryPage() {
     filtered = products.filter(p => p.category === slug);
   }
 
-  if (priceMin > MIN_PRICE || priceMax < MAX_PRICE) {
-    filtered = filtered.filter(p => p.price >= priceMin && p.price <= priceMax);
-  }
+  filtered = filtered.filter(p => p.price >= priceMin && p.price <= priceMax);
   if (sort === 'price-asc')  filtered = [...filtered].sort((a, b) => a.price - b.price);
   else if (sort === 'price-desc') filtered = [...filtered].sort((a, b) => b.price - a.price);
   else if (sort === 'discount')   filtered = [...filtered].sort((a, b) => b.discount - a.discount);
@@ -154,69 +160,68 @@ export default function CategoryPage() {
             {/* Bộ lọc giá */}
             <div className="sidebar-widget">
               <h3 className="sidebar-title">Khoảng giá</h3>
-              <div className="price-range-container">
-                <div className="price-range-inputs">
-                  <input
-                    type="text"
-                    placeholder="Từ"
-                    value={priceMin === 0 ? '' : priceMin.toLocaleString('vi-VN')}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value.replace(/\D/g, '')) || 0;
-                      setPriceMin(Math.min(val, priceMax));
-                      setPage(1);
-                    }}
-                    className="price-input"
-                  />
-                  <span className="price-separator">-</span>
-                  <input
-                    type="text"
-                    placeholder="Đến"
-                    value={priceMax === MAX_PRICE ? '' : priceMax.toLocaleString('vi-VN')}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value.replace(/\D/g, '')) || MAX_PRICE;
-                      setPriceMax(Math.max(val, priceMin));
-                      setPage(1);
-                    }}
-                    className="price-input"
-                  />
-                </div>
-                <div className="price-range-slider-container">
-                  <div className="price-range-slider">
+              <div className="price-filter-slider">
+                <div className="price-inputs-row">
+                  <div className="price-input-group">
+                    <label>Từ:</label>
                     <input
-                      type="range"
-                      min={MIN_PRICE}
-                      max={MAX_PRICE}
+                      type="number"
+                      className="price-input"
                       value={priceMin}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (val <= priceMax) {
-                          setPriceMin(val);
-                          setPage(1);
-                        }
+                        const val = Math.max(MIN_PRICE, Math.min(parseInt(e.target.value) || 0, priceMax));
+                        setPriceMin(val);
                       }}
-                      className="price-range-input price-range-min"
-                    />
-                    <input
-                      type="range"
                       min={MIN_PRICE}
-                      max={MAX_PRICE}
+                      max={priceMax}
+                    />
+                  </div>
+                  <div className="price-input-group">
+                    <label>Đến:</label>
+                    <input
+                      type="number"
+                      className="price-input"
                       value={priceMax}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (val >= priceMin) {
-                          setPriceMax(val);
-                          setPage(1);
-                        }
+                        const val = Math.min(MAX_PRICE, Math.max(parseInt(e.target.value) || MAX_PRICE, priceMin));
+                        setPriceMax(val);
                       }}
-                      className="price-range-input price-range-max"
+                      min={priceMin}
+                      max={MAX_PRICE}
                     />
-                    <div className="price-range-track"></div>
-                    <div className="price-range-fill"></div>
                   </div>
                 </div>
-                <div className="price-range-labels">
-                  <span>{priceMin.toLocaleString('vi-VN')}₫</span>
-                  <span>{priceMax.toLocaleString('vi-VN')}₫</span>
+                <div className="slider-container">
+                  <input
+                    type="range"
+                    min={MIN_PRICE}
+                    max={MAX_PRICE}
+                    value={priceMin}
+                    onChange={(e) => setPriceMin(Math.min(parseInt(e.target.value), priceMax))}
+                    className="range-slider range-slider-min"
+                  />
+                  <input
+                    type="range"
+                    min={MIN_PRICE}
+                    max={MAX_PRICE}
+                    value={priceMax}
+                    onChange={(e) => setPriceMax(Math.max(parseInt(e.target.value), priceMin))}
+                    className="range-slider range-slider-max"
+                  />
+                  <div className="slider-track">
+                    <div
+                      className="slider-track-active"
+                      style={{
+                        left: `${(priceMin / MAX_PRICE) * 100}%`,
+                        right: `${100 - (priceMax / MAX_PRICE) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="price-display">
+                  <span className="price-display-text">
+                    {(priceMin / 1000).toFixed(0)}k - {(priceMax / 1000).toFixed(0)}k₫
+                  </span>
                 </div>
               </div>
             </div>
