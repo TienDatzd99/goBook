@@ -210,3 +210,9 @@
   font-weight: 600;
   color: var(--primary);
 }
+
+.price-filter-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0;
+}

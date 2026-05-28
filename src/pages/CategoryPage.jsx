@@ -224,6 +224,28 @@ export default function CategoryPage() {
                   </span>
                 </div>
               </div>
+              <div className="price-filter-divider"></div>
+              <ul className="price-filter">
+                <li>
+                  <label className="radio-label">
+                    <input type="radio" name="price" checked={priceMin === MIN_PRICE && priceMax === MAX_PRICE} onChange={() => { setPriceMin(MIN_PRICE); setPriceMax(MAX_PRICE); }} />
+                    Tất cả
+                  </label>
+                </li>
+                {PRICE_RANGES.map((r, i) => (
+                  <li key={i}>
+                    <label className="radio-label">
+                      <input
+                        type="radio"
+                        name="price"
+                        checked={priceMin === r.min && priceMax === r.max}
+                        onChange={() => { setPriceMin(r.min); setPriceMax(r.max); }}
+                      />
+                      {r.label}
+                    </label>
+                  </li>
+                ))}
+              </ul>
             </div>
           </aside>
 
