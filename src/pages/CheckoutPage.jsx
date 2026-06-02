@@ -538,7 +538,9 @@ export default function CheckoutPage() {
     if (nameError) newErrors.name = nameError;
     if (phoneError) newErrors.phone = phoneError;
     if (!newAddrForm.address || newAddrForm.address.trim().length < 5) newErrors.address = 'Địa chỉ phải có ít nhất 5 ký tự';
-    if (!newAddrForm.city) newErrors.city = 'Vui lòng chọn tỉnh/thành phố';
+    if (!newAddrForm.ghn_to_district_id || !newAddrForm.ghn_to_ward_code) {
+      newErrors.city = 'Vui lòng chọn đầy đủ Tỉnh/Thành, Quận/Huyện, Phường/Xã từ danh sách';
+    }
     
     if (Object.keys(newErrors).length > 0) {
       setAddrErrors(newErrors);
@@ -672,15 +674,25 @@ export default function CheckoutPage() {
     if (user && addresses.length > 0 && selectedAddressId) {
       const selectedAddr = addresses.find(a => a.id === selectedAddressId);
       if (selectedAddr) {
+        if (!selectedAddr.ghn_to_district_id || !selectedAddr.ghn_to_ward_code) {
+          setError('Địa chỉ đã lưu thiếu thông tin Tỉnh/Thành, Quận/Huyện, Phường/Xã từ hệ thống mới. Vui lòng thêm lại địa chỉ mới để tiếp tục.');
+          return;
+        }
         orderData.name = selectedAddr.name;
         orderData.phone = selectedAddr.phone;
         orderData.address = selectedAddr.address;
         orderData.city = '';
         orderData.district = '';
+        orderData.ghn_to_district_id = selectedAddr.ghn_to_district_id;
+        orderData.ghn_to_ward_code = selectedAddr.ghn_to_ward_code;
       }
     } else {
       if (!form.name || !form.phone || !form.address) {
         setError('Vui lòng điền đầy đủ thông tin giao hàng.');
+        return;
+      }
+      if (!form.ghn_to_district_id || !form.ghn_to_ward_code) {
+        setError('Vui lòng chọn đầy đủ Tỉnh/Thành, Quận/Huyện, và Phường/Xã từ danh sách.');
         return;
       }
     }

@@ -381,10 +381,10 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
 
         if (!toDistrictId || !toWardCode) {
           console.warn(`⚠️ GHN skipped: missing to_district_id or to_ward_code for order ${updatedOrder.id}`);
-          return res.status(400).json({ error: 'GHN skipped: missing to_district_id or to_ward_code' });
+          return res.json({ message: 'Cập nhật trạng thái thành công (Bỏ qua tạo đơn GHN do thiếu địa chỉ)', status, warning: 'ghn_skipped' });
         }
 
-        const ghnPayload = {
+        ghnPayload = {
           to_name: updatedOrder.customer_name,
           to_phone: updatedOrder.phone,
           to_address: updatedOrder.address,
@@ -420,9 +420,9 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
       } else {
         console.error('⚠️ GHN create payload: <not set>');
       }
-      // Return GHN error back to client for debugging (temporary)
+      // Return success but with GHN warning
       const ghnErr = err?.response?.data || err.message || 'Unknown GHN error';
-      return res.status(502).json({ error: 'GHN create failed', details: ghnErr });
+      return res.json({ message: 'Cập nhật trạng thái thành công nhưng tạo đơn GHN thất bại', status, warning: ghnErr });
     }
   }
 
