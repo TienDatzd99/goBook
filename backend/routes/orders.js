@@ -382,6 +382,9 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
       } catch (e) {
         console.error('⚠️ GHN payload stringify error:', e.message || e);
       }
+      // Return GHN error back to client for debugging (temporary)
+      const ghnErr = err?.response?.data || err.message || 'Unknown GHN error';
+      return res.status(502).json({ error: 'GHN create failed', details: ghnErr });
     }
   }
 
