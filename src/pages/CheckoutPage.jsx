@@ -717,6 +717,7 @@ export default function CheckoutPage() {
           payment_method: payment,
           user_id: user?.id || null,
           voucher_code: voucherResult?.code || null,
+          shipping_fee: actualShipping,
           items: items.map(i => ({
             id: i.id,
             name: i.name,
@@ -907,7 +908,7 @@ export default function CheckoutPage() {
                         // Calculate shipping fee via backend GHN proxy
                         try {
                           setGhnShippingLoading(true);
-                          const weight = Math.max(500, items.reduce((s,i)=>s + (i.quantity||1)*500, 0));
+                          const weight = Math.max(500, Math.floor(items.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500);
                           const res = await fetch(`${API_BASE}/api/shipping/ghn/fee`, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ to_district_id: sel.districtId, to_ward_code: sel.wardCode, weight }),
@@ -1135,7 +1136,7 @@ export default function CheckoutPage() {
                   // calculate fee
                   try {
                     setGhnShippingLoading(true);
-                    const weight = Math.max(500, items.reduce((s,i)=>s + (i.quantity||1)*500, 0));
+                    const weight = Math.max(500, Math.floor(items.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500);
                     const res = await fetch(`${API_BASE}/api/shipping/ghn/fee`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ to_district_id: pre.ghn_to_district_id, to_ward_code: pre.ghn_to_ward_code, weight }),

@@ -204,7 +204,7 @@ router.get('/:id', (req, res) => {
 //   momo  → status = 'confirmed' (tự xác nhận, chờ CK)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const { customer_name, phone, email, address, city, district, note, payment_method, items, user_id, voucher_code, ghn_to_district_id, ghn_to_ward_code } = req.body;
+  const { customer_name, phone, email, address, city, district, note, payment_method, items, user_id, voucher_code, ghn_to_district_id, ghn_to_ward_code, shipping_fee: requested_shipping_fee } = req.body;
 
   if (!customer_name || !phone || !address || !items?.length) {
     return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
@@ -240,7 +240,7 @@ router.post('/', async (req, res) => {
   }
 
   // Free shipping applies based on subtotal BEFORE discounts (business choice)
-  const shipping_fee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : DEFAULT_SHIPPING_FEE;
+  const shipping_fee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : (requested_shipping_fee !== undefined ? Number(requested_shipping_fee) : DEFAULT_SHIPPING_FEE);
   const total = subtotal - discountAmount + shipping_fee;
   const code = generateOrderCode();
 
