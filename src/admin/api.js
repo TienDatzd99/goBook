@@ -41,6 +41,7 @@ export const api = {
   getOrders: (params = {}) => request('/orders?' + new URLSearchParams(params)),
   getOrder: (id) => request(`/orders/${id}`),
   updateOrderStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  updateOrderGhn: (id, data) => request(`/orders/${id}/ghn`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteOrder: (id) => request(`/orders/${id}`, { method: 'DELETE' }),
 
   // Users

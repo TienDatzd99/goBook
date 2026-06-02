@@ -39,6 +39,9 @@ export default function Orders() {
   const openDetail = async (id) => {
     const d = await api.getOrder(id);
     setDetail(d);
+    // initialize ghn inputs
+    setGhnDistrict(d.ghn_to_district_id || '');
+    setGhnWard(d.ghn_to_ward_code || '');
   };
 
   const updateStatus = async (id, status) => {
@@ -52,6 +55,21 @@ export default function Orders() {
     if (!confirm('Xóa đơn hàng này?')) return;
     await api.deleteOrder(id);
     load();
+  };
+
+  const [ghnDistrict, setGhnDistrict] = useState('');
+  const [ghnWard, setGhnWard] = useState('');
+  const [savingGhn, setSavingGhn] = useState(false);
+
+  const saveGhnAndConfirm = async (id) => {
+    if (!ghnDistrict || !ghnWard) return alert('Vui lòng nhập mã district và mã ward (GHN).');
+    setSavingGhn(true);
+    try {
+      await api.updateOrderGhn(id, { ghn_to_district_id: Number(ghnDistrict), ghn_to_ward_code: ghnWard });
+      await api.updateOrderStatus(id, 'confirmed');
+      const d = await api.getOrder(id); setDetail(d); load();
+    } catch (e) { alert('Lỗi: ' + e.message); }
+    finally { setSavingGhn(false); }
   };
 
   return (
@@ -191,9 +209,18 @@ export default function Orders() {
             </div>
             <div className="a-modal-footer">
               {STATUS_CONFIG[detail.status]?.next && (
-                <button className="a-btn a-btn-success" onClick={() => updateStatus(detail.id, STATUS_CONFIG[detail.status].next)} disabled={updating===detail.id}>
-                  ✅ {STATUS_CONFIG[detail.status].nextLabel}
-                </button>
+                // If GHN fields missing, show inputs to fill them before confirming
+                (detail.status === 'pending' && (!detail.ghn_to_district_id || !detail.ghn_to_ward_code)) ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input placeholder="GHN district id" value={ghnDistrict} onChange={e => setGhnDistrict(e.target.value)} style={{ width: 120 }} />
+                    <input placeholder="GHN ward code" value={ghnWard} onChange={e => setGhnWard(e.target.value)} style={{ width: 140 }} />
+                    <button className="a-btn a-btn-success" onClick={() => saveGhnAndConfirm(detail.id)} disabled={savingGhn}>{savingGhn ? '...' : 'Lưu & Xác nhận'}</button>
+                  </div>
+                ) : (
+                  <button className="a-btn a-btn-success" onClick={() => updateStatus(detail.id, STATUS_CONFIG[detail.status].next)} disabled={updating===detail.id}>
+                    ✅ {STATUS_CONFIG[detail.status].nextLabel}
+                  </button>
+                )
               )}
               {detail.status === 'pending' && (
                 <button className="a-btn a-btn-danger" onClick={() => { updateStatus(detail.id, 'cancelled'); setDetail(null); }}>✕ Hủy đơn</button>
