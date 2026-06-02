@@ -278,13 +278,14 @@ router.post('/', async (req, res) => {
     INSERT INTO orders (code, user_id, customer_name, phone, email, address, city, district, note,
       ghn_to_district_id, ghn_to_ward_code, payment_method, status, subtotal, shipping_fee, total)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  ).run(
     code,
     user_id || null,
     customer_name, phone, email || '', address,
     city || '', district || '', note || '',
-    ghn_to_district_id || null,
-    ghn_to_ward_code || '',
+    // persist auto-derived GHN mapping when available
+    final_ghn_district || ghn_to_district_id || null,
+    final_ghn_ward || ghn_to_ward_code || '',
     method, initialStatus,
     subtotal, shipping_fee, total
   );
