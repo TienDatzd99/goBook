@@ -39,6 +39,9 @@ db.exec(`
     name TEXT NOT NULL,
     phone TEXT NOT NULL,
     address TEXT NOT NULL,
+    province_id INTEGER DEFAULT NULL,
+    district_id INTEGER DEFAULT NULL,
+    ward_code TEXT DEFAULT NULL,
     is_default INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -86,6 +89,11 @@ db.exec(`
     city TEXT DEFAULT '',
     district TEXT DEFAULT '',
     note TEXT DEFAULT '',
+    -- GHN shipping integration
+    ghn_to_district_id INTEGER DEFAULT NULL,
+    ghn_to_ward_code TEXT DEFAULT NULL,
+    ghn_fee INTEGER NOT NULL DEFAULT 0,
+    ghn_order_code TEXT DEFAULT NULL,
     payment_method TEXT NOT NULL DEFAULT 'cod',
     status TEXT NOT NULL DEFAULT 'pending',
     payment_status TEXT NOT NULL DEFAULT 'unpaid',
@@ -227,6 +235,41 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
 `);
+
+// --- Migrations for new GHN columns (safe to run multiple times) ---
+try {
+  const existing = db.prepare("PRAGMA table_info(orders)").all().map(r => r.name);
+  if (!existing.includes('ghn_to_district_id')) {
+    db.prepare("ALTER TABLE orders ADD COLUMN ghn_to_district_id INTEGER DEFAULT NULL").run();
+  }
+  if (!existing.includes('ghn_to_ward_code')) {
+    db.prepare("ALTER TABLE orders ADD COLUMN ghn_to_ward_code TEXT DEFAULT NULL").run();
+  }
+  if (!existing.includes('ghn_fee')) {
+    db.prepare("ALTER TABLE orders ADD COLUMN ghn_fee INTEGER NOT NULL DEFAULT 0").run();
+  }
+  if (!existing.includes('ghn_order_code')) {
+    db.prepare("ALTER TABLE orders ADD COLUMN ghn_order_code TEXT DEFAULT NULL").run();
+  }
+} catch (e) {
+  console.warn('DB migration warning:', e.message || e);
+}
+
+// Migrate user_addresses to include GHN fields if missing
+try {
+  const ua = db.prepare("PRAGMA table_info(user_addresses)").all().map(r => r.name);
+  if (!ua.includes('province_id')) {
+    db.prepare("ALTER TABLE user_addresses ADD COLUMN province_id INTEGER DEFAULT NULL").run();
+  }
+  if (!ua.includes('district_id')) {
+    db.prepare("ALTER TABLE user_addresses ADD COLUMN district_id INTEGER DEFAULT NULL").run();
+  }
+  if (!ua.includes('ward_code')) {
+    db.prepare("ALTER TABLE user_addresses ADD COLUMN ward_code TEXT DEFAULT NULL").run();
+  }
+} catch (e) {
+  console.warn('DB user_addresses migration warning:', e.message || e);
+}
 
 function ensureUserColumns() {
   const columns = db.prepare('PRAGMA table_info(users)').all().map((row) => row.name);

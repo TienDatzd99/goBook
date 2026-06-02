@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, adminOnly } = require('../middleware/auth');
 const { getTransporter } = require('../utils/mailer');
+const { createOrder: createGhnOrder, isGhnConfigured } = require('../services/ghn');
 const { FREE_SHIPPING_THRESHOLD, DEFAULT_SHIPPING_FEE } = require('../config');
 const router = express.Router();
 
@@ -203,7 +204,7 @@ router.get('/:id', (req, res) => {
 //   momo  → status = 'confirmed' (tự xác nhận, chờ CK)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const { customer_name, phone, email, address, city, district, note, payment_method, items, user_id, voucher_code } = req.body;
+  const { customer_name, phone, email, address, city, district, note, payment_method, items, user_id, voucher_code, ghn_to_district_id, ghn_to_ward_code } = req.body;
 
   if (!customer_name || !phone || !address || !items?.length) {
     return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
@@ -245,13 +246,15 @@ router.post('/', async (req, res) => {
 
   const orderResult = db.prepare(`
     INSERT INTO orders (code, user_id, customer_name, phone, email, address, city, district, note,
-      payment_method, status, subtotal, shipping_fee, total)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ghn_to_district_id, ghn_to_ward_code, payment_method, status, subtotal, shipping_fee, total)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     code,
     user_id || null,
     customer_name, phone, email || '', address,
     city || '', district || '', note || '',
+    ghn_to_district_id || null,
+    ghn_to_ward_code || '',
     method, initialStatus,
     subtotal, shipping_fee, total
   );
@@ -336,6 +339,43 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
     const items = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(order.id);
     const updatedOrder = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     sendOrderEmail(updatedOrder, items, 'confirmed_customer').catch(e => console.error('Email error:', e.message));
+  }
+
+  // When an order becomes confirmed, create GHN shipment if configured and not previously created
+  if (status === 'confirmed') {
+    try {
+      const updatedOrder = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+      if (isGhnConfigured() && !updatedOrder.ghn_order_code) {
+        const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(updatedOrder.id);
+        const itemsForGhn = orderItems.map(i => ({ name: i.product_name, quantity: i.quantity, price: i.price, sku: i.product_id || '' }));
+
+        const ghnPayload = {
+          to_name: updatedOrder.customer_name,
+          to_phone: updatedOrder.phone,
+          to_address: updatedOrder.address,
+          to_district_id: updatedOrder.ghn_to_district_id || Number(updatedOrder.district) || 0,
+          to_ward_code: updatedOrder.ghn_to_ward_code || '',
+          cod_amount: updatedOrder.payment_method === 'cod' ? updatedOrder.total : 0,
+          weight: Math.max(500, Math.floor((orderItems.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500)),
+          length: 10,
+          width: 10,
+          height: 10,
+          items: itemsForGhn,
+        };
+
+        const ghRes = await createGhnOrder(ghnPayload);
+        const ghnCode = ghRes?.data?.order_code || ghRes?.data?.data?.order_code || null;
+        const ghnFee = ghRes?.data?.data?.total_fee ?? ghRes?.data?.total_fee ?? 0;
+        if (ghnCode) {
+          db.prepare(`UPDATE orders SET ghn_order_code=?, ghn_fee=?, updated_at=datetime('now','localtime') WHERE id=?`).run(ghnCode, ghnFee, updatedOrder.id);
+          console.log(`📦 [GHN] Created shipment ${ghnCode} for order ${updatedOrder.code}`);
+        } else {
+          console.warn('⚠️ GHN createOrder returned unexpected response', ghRes);
+        }
+      }
+    } catch (err) {
+      console.error('GHN create error:', err.message || err);
+    }
   }
 
   res.json({ message: 'Cập nhật trạng thái thành công', status });

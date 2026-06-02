@@ -470,10 +470,11 @@ export default function CheckoutPage() {
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const DEFAULT_SHIPPING_FEE = parseInt(import.meta.env.VITE_DEFAULT_SHIPPING_FEE || '30000', 10);
   const shippingFee = total >= freeShipThreshold ? 0 : DEFAULT_SHIPPING_FEE;
-
+  // Prefer GHN-calculated fee when available
   const [form, setForm] = useState({
     name: user?.name || '', phone: '', email: user?.email || '',
     address: '', city: '', district: '', note: '',
+    ghn_to_district_id: null, ghn_to_ward_code: null, ghn_province_id: null,
   });
 
   const [addresses, setAddresses] = useState([]);
@@ -481,6 +482,8 @@ export default function CheckoutPage() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [newAddressMode, setNewAddressMode] = useState(false);
   const [newAddrForm, setNewAddrForm] = useState({ name: '', phone: '', address: '', is_default: false });
+  const [ghnShippingFee, setGhnShippingFee] = useState(null);
+  const [ghnShippingLoading, setGhnShippingLoading] = useState(false);
   const [addrErrors, setAddrErrors] = useState({});
 
   // Validation functions for address
@@ -548,7 +551,16 @@ export default function CheckoutPage() {
       const res = await fetch(`${API_BASE}/api/users/me/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ name: newAddrForm.name, phone: newAddrForm.phone, address: fullAddress, is_default: newAddrForm.is_default ? 1 : 0 })
+        body: JSON.stringify({
+          name: newAddrForm.name,
+          phone: newAddrForm.phone,
+          address: fullAddress,
+          is_default: newAddrForm.is_default ? 1 : 0,
+          ghn_province_id: newAddrForm.ghn_province_id || null,
+          ghn_to_district_id: newAddrForm.ghn_to_district_id || null,
+          ghn_to_ward_code: newAddrForm.ghn_to_ward_code || null,
+          district: newAddrForm.districtName || ''
+        })
       });
       if (res.ok) {
         const r2 = await fetch(`${API_BASE}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } });
@@ -590,7 +602,7 @@ export default function CheckoutPage() {
 
   const discount = voucherResult?.discount || 0;
   // Use subtotal BEFORE discount to determine free shipping (keep behavior consistent with cart)
-  const actualShipping = total >= freeShipThreshold ? 0 : shippingFee;
+  const actualShipping = total >= freeShipThreshold ? 0 : (ghnShippingFee != null ? ghnShippingFee : shippingFee);
   const remainingForFreeShip = Math.max(0, freeShipThreshold - (total - discount));
   const actualTotal = total - discount + actualShipping;
 
@@ -652,6 +664,8 @@ export default function CheckoutPage() {
           address: orderData.address,
           city: orderData.city,
           district: orderData.district,
+          ghn_to_district_id: orderData.ghn_to_district_id || form.ghn_to_district_id || null,
+          ghn_to_ward_code: orderData.ghn_to_ward_code || form.ghn_to_ward_code || null,
           note: orderData.note,
           payment_method: payment,
           user_id: user?.id || null,
@@ -833,7 +847,41 @@ export default function CheckoutPage() {
                     <input className="form-control" name="address" value={form.address} onChange={handleChange} placeholder="Địa chỉ cụ thể (Số nhà, tòa nhà)" />
                   </div>
                   <div className="form-group" style={{ zIndex: 100 }}>
-                    <AddressDropdown value={form.city} onChange={val => setForm({...form, city: val})} />
+                    <AddressDropdown
+                      value={form.city}
+                      onSelect={async (sel) => {
+                        setForm(f => ({ ...f,
+                          city: sel.provinceName,
+                          district: sel.districtName,
+                          ghn_province_id: sel.provinceId,
+                          ghn_to_district_id: sel.districtId,
+                          ghn_to_ward_code: sel.wardCode,
+                        }));
+                        // Calculate shipping fee via backend GHN proxy
+                        try {
+                          setGhnShippingLoading(true);
+                          const weight = Math.max(500, items.reduce((s,i)=>s + (i.quantity||1)*500, 0));
+                          const res = await fetch(`${API_BASE}/api/shipping/ghn/fee`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to_district_id: sel.districtId, to_ward_code: sel.wardCode, weight }),
+                          });
+                          const d = await res.json();
+                          if (res.ok && d.data && d.data.fee && d.data.service_fee) {
+                            // GHN v2 fee structure may vary; try common fields
+                            const fee = d.data.service_fee || d.data.fee || (d.data[0] && d.data[0].total) || 0;
+                            setGhnShippingFee(Number(fee) || 0);
+                          } else if (d.code === 200 && d.data && d.data.total) {
+                            setGhnShippingFee(Number(d.data.total) || 0);
+                          } else {
+                            setGhnShippingFee(null);
+                          }
+                        } catch (err) {
+                          console.error('GHN fee error', err);
+                          setGhnShippingFee(null);
+                        } finally { setGhnShippingLoading(false); }
+                      }}
+                      onChange={val => setForm({...form, city: val})}
+                    />
                   </div>
                 </div>
               )}
@@ -998,7 +1046,11 @@ export default function CheckoutPage() {
                   {addrErrors.address && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.address}</span>}
                 </div>
                 <div className="form-group">
-                  <AddressDropdown value={newAddrForm.city || ''} onChange={val => setNewAddrForm({...newAddrForm, city: val})} />
+                  <AddressDropdown
+                    value={newAddrForm.city || ''}
+                    onSelect={sel => setNewAddrForm({...newAddrForm, city: sel.provinceName, districtName: sel.districtName, ghn_province_id: sel.provinceId, ghn_to_district_id: sel.districtId, ghn_to_ward_code: sel.wardCode })}
+                    onChange={val => setNewAddrForm({...newAddrForm, city: val})}
+                  />
                   {addrErrors.city && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.city}</span>}
                 </div>
                 <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1029,7 +1081,33 @@ export default function CheckoutPage() {
                     ))}
                   </div>
                 )}
-                <button type="button" className="btn-login-prompt" style={{ width: '100%', textAlign: 'center' }} onClick={() => setNewAddressMode(true)}>
+                <button type="button" className="btn-login-prompt" style={{ width: '100%', textAlign: 'center' }} onClick={async () => {
+                  // Prefill new address modal with Hà Nội / Hà Đông / Mộ Lao
+                  const pre = { name: '', phone: '', address: '', is_default: false, city: 'Hà Nội', districtName: 'Quận Hà Đông', ghn_province_id: 201, ghn_to_district_id: 1542, ghn_to_ward_code: '1B1514' };
+                  setNewAddrForm(pre);
+                  // Also set main form so checkout shows calculated fee
+                  setForm(f => ({ ...f, city: pre.city, district: pre.districtName, ghn_province_id: pre.ghn_province_id, ghn_to_district_id: pre.ghn_to_district_id, ghn_to_ward_code: pre.ghn_to_ward_code }));
+                  // calculate fee
+                  try {
+                    setGhnShippingLoading(true);
+                    const weight = Math.max(500, items.reduce((s,i)=>s + (i.quantity||1)*500, 0));
+                    const res = await fetch(`${API_BASE}/api/shipping/ghn/fee`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ to_district_id: pre.ghn_to_district_id, to_ward_code: pre.ghn_to_ward_code, weight }),
+                    });
+                    const d = await res.json();
+                    if (res.ok && d.data && (d.data.service_fee || d.data.fee || d.data.total)) {
+                      const fee = d.data.service_fee || d.data.fee || d.data.total || (d.data[0] && d.data[0].total) || 0;
+                      setGhnShippingFee(Number(fee) || 0);
+                    } else {
+                      setGhnShippingFee(null);
+                    }
+                  } catch (err) {
+                    console.error('GHN fee prefill error', err);
+                    setGhnShippingFee(null);
+                  } finally { setGhnShippingLoading(false); }
+                  setNewAddressMode(true);
+                }}>
                   + Thêm địa chỉ mới
                 </button>
               </div>

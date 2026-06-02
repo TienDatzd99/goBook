@@ -88,7 +88,7 @@ router.get('/me/addresses', auth, (req, res) => {
 
 // POST /api/users/me/addresses
 router.post('/me/addresses', auth, (req, res) => {
-  const { name, phone, address, is_default } = req.body;
+  const { name, phone, address, is_default, province_id, district_id, ward_code } = req.body;
   if (!name || !phone || !address) return res.status(400).json({ error: 'Vui lòng điền đủ thông tin' });
 
   // If this is the first address or set as default, we might need to unset others
@@ -100,16 +100,16 @@ router.post('/me/addresses', auth, (req, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO user_addresses (user_id, name, phone, address, is_default)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(req.user.id, name, phone, address, setAsDefault);
+    INSERT INTO user_addresses (user_id, name, phone, address, province_id, district_id, ward_code, is_default)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(req.user.id, name, phone, address, province_id || null, district_id || null, ward_code || '', setAsDefault);
 
   res.status(201).json({ id: result.lastInsertRowid, message: 'Thêm địa chỉ thành công' });
 });
 
 // PUT /api/users/me/addresses/:id
 router.put('/me/addresses/:id', auth, (req, res) => {
-  const { name, phone, address, is_default } = req.body;
+  const { name, phone, address, is_default, province_id, district_id, ward_code } = req.body;
   
   // verify ownership
   const addr = db.prepare('SELECT id FROM user_addresses WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
@@ -121,9 +121,9 @@ router.put('/me/addresses/:id', auth, (req, res) => {
 
   db.prepare(`
     UPDATE user_addresses 
-    SET name=?, phone=?, address=?, is_default=?, updated_at=datetime('now','localtime') 
+    SET name=?, phone=?, address=?, province_id=?, district_id=?, ward_code=?, is_default=?, updated_at=datetime('now','localtime') 
     WHERE id=?
-  `).run(name, phone, address, is_default ? 1 : 0, req.params.id);
+  `).run(name, phone, address, province_id || null, district_id || null, ward_code || '', is_default ? 1 : 0, req.params.id);
 
   res.json({ message: 'Cập nhật địa chỉ thành công' });
 });

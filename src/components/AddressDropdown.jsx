@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './AddressDropdown.css';
 
-export default function AddressDropdown({ value, onChange }) {
+export default function AddressDropdown({ value, onChange, onSelect, initial }) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('province'); // province, district, ward
   const [provinces, setProvinces] = useState([]);
@@ -15,11 +15,42 @@ export default function AddressDropdown({ value, onChange }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    fetch('https://provinces.open-api.vn/api/p/')
+    fetch('/api/shipping/ghn/provinces')
       .then(res => res.json())
-      .then(data => setProvinces(data))
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data.data || []);
+        setProvinces(list.map(p => ({ id: p.ProvinceID, name: p.ProvinceName, code: p.Code })));
+      })
       .catch(console.error);
   }, []);
+
+  // if initial selection provided, attempt to pre-select
+  useEffect(() => {
+    if (!initial) return;
+    if (provinces.length === 0) return;
+    if (initial.provinceId) {
+      const p = provinces.find(x => x.id === initial.provinceId);
+      if (p) handleSelectProvince(p);
+    }
+  }, [initial, provinces]);
+
+  useEffect(() => {
+    if (!initial) return;
+    if (districts.length === 0) return;
+    if (initial.districtId) {
+      const d = districts.find(x => x.id === initial.districtId);
+      if (d) handleSelectDistrict(d);
+    }
+  }, [initial, districts]);
+
+  useEffect(() => {
+    if (!initial) return;
+    if (wards.length === 0) return;
+    if (initial.wardCode) {
+      const w = wards.find(x => x.code === initial.wardCode);
+      if (w) handleSelectWard(w);
+    }
+  }, [initial, wards]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -37,31 +68,46 @@ export default function AddressDropdown({ value, onChange }) {
     setSelectedWard(null);
     setDistricts([]);
     setWards([]);
-    fetch(`https://provinces.open-api.vn/api/p/${p.code}?depth=2`)
+    fetch(`/api/shipping/ghn/districts/${p.id}`)
       .then(res => res.json())
       .then(data => {
-        setDistricts(data.districts);
+        const list = Array.isArray(data) ? data : (data.data || []);
+        setDistricts(list.map(d => ({ id: d.DistrictID, name: d.DistrictName, code: d.Code })));
         setActiveTab('district');
-      });
+      })
+      .catch(console.error);
   };
 
   const handleSelectDistrict = (d) => {
     setSelectedDistrict(d);
     setSelectedWard(null);
     setWards([]);
-    fetch(`https://provinces.open-api.vn/api/d/${d.code}?depth=2`)
+    fetch(`/api/shipping/ghn/wards/${d.id}`)
       .then(res => res.json())
       .then(data => {
-        setWards(data.wards);
+        const list = Array.isArray(data) ? data : (data.data || []);
+        setWards(list.map(w => ({ code: w.WardCode, name: w.WardName })));
         setActiveTab('ward');
-      });
+      })
+      .catch(console.error);
   };
 
   const handleSelectWard = (w) => {
     setSelectedWard(w);
     setIsOpen(false);
-    const fullAddress = `${w.name}, ${selectedDistrict.name}, ${selectedProvince.name}`;
-    onChange(fullAddress);
+    const display = `${w.name}, ${selectedDistrict.name}, ${selectedProvince.name}`;
+    if (typeof onChange === 'function') onChange(display);
+    if (typeof onSelect === 'function') {
+      onSelect({
+        provinceId: selectedProvince?.id,
+        provinceName: selectedProvince?.name,
+        districtId: selectedDistrict?.id,
+        districtName: selectedDistrict?.name,
+        wardCode: w.code,
+        wardName: w.name,
+        display,
+      });
+    }
   };
 
   const displayValue = value || (selectedWard ? `${selectedWard.name}, ${selectedDistrict.name}, ${selectedProvince.name}` : '');
@@ -86,14 +132,14 @@ export default function AddressDropdown({ value, onChange }) {
           <div className="address-list">
             {activeTab === 'province' && (
               provinces.map(p => (
-                <div key={p.code} className={`address-list-item ${selectedProvince?.code === p.code ? 'selected' : ''}`} onClick={() => handleSelectProvince(p)}>
+                <div key={p.id} className={`address-list-item ${selectedProvince?.id === p.id ? 'selected' : ''}`} onClick={() => handleSelectProvince(p)}>
                   {p.name}
                 </div>
               ))
             )}
             {activeTab === 'district' && (
               districts.length > 0 ? districts.map(d => (
-                <div key={d.code} className={`address-list-item ${selectedDistrict?.code === d.code ? 'selected' : ''}`} onClick={() => handleSelectDistrict(d)}>
+                <div key={d.id} className={`address-list-item ${selectedDistrict?.id === d.id ? 'selected' : ''}`} onClick={() => handleSelectDistrict(d)}>
                   {d.name}
                 </div>
               )) : <div className="address-list-empty">Vui lòng chọn Tỉnh / TP trước</div>

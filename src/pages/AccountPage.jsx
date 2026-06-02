@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { X, Star, AlertTriangle, Send, CheckCircle, MessageSquare } from 'lucide-react';
 import './AccountPage.css';
+import AddressDropdown from '../components/AddressDropdown';
 
 const API = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api`;
 
@@ -203,7 +204,7 @@ function AddressesTab({ getToken, addToast }) {
 }
 
 function AddressModal({ onClose, onSuccess, initialData, getToken, addToast }) {
-  const [formData, setFormData] = useState(initialData || { name: '', phone: '', address: '', is_default: false });
+  const [formData, setFormData] = useState(initialData || { name: '', phone: '', address: '', is_default: false, province_id: null, district_id: null, ward_code: '' });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -243,6 +244,10 @@ function AddressModal({ onClose, onSuccess, initialData, getToken, addToast }) {
     const value = e.target.value;
     setFormData({...formData, address: value});
     if (errors.address) setErrors({...errors, address: validateAddress(value)});
+  };
+
+  const handleGhnSelect = ({ provinceId, districtId, wardCode }) => {
+    setFormData({ ...formData, province_id: provinceId, district_id: districtId, ward_code: wardCode });
   };
 
   const handleSubmit = async (e) => {
@@ -314,7 +319,7 @@ function AddressModal({ onClose, onSuccess, initialData, getToken, addToast }) {
             {errors.phone && <span style={{color: '#d32f2f', fontSize: '12px'}}>{errors.phone}</span>}
           </div>
           <div className="form-group">
-            <label>Địa chỉ cụ thể (Số nhà, Phường/Xã, Quận/Huyện, Tỉnh/TP)</label>
+            <label>Địa chỉ cụ thể (Số nhà, Đường)</label>
             <input 
               type="text" 
               value={formData.address} 
@@ -322,6 +327,11 @@ function AddressModal({ onClose, onSuccess, initialData, getToken, addToast }) {
               required 
             />
             {errors.address && <span style={{color: '#d32f2f', fontSize: '12px'}}>{errors.address}</span>}
+          </div>
+
+          <div className="form-group">
+            <label>Tỉnh/TP - Quận/Huyện - Phường/Xã</label>
+            <AddressDropdown onSelect={handleGhnSelect} initial={{ provinceId: formData.province_id, districtId: formData.district_id, wardCode: formData.ward_code }} />
           </div>
           <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
             <input 
