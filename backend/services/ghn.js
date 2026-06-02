@@ -121,7 +121,7 @@ async function createOrder(payload) {
     width: Number(payload.width || 0),
     height: Number(payload.height || 0),
     service_type_id: Number(payload.service_type_id || config.serviceTypeId || 2),
-    payment_type_id: Number(payload.payment_type_id || 2),
+    payment_type_id: Number(payload.payment_type_id || 1), // 1: Người gửi trả phí, vì web đã thu phí ship vào tổng đơn
     required_note: payload.required_note || 'KHONGCHOXEMHANG',
     note: payload.note || '',
     items: Array.isArray(payload.items) ? payload.items : [],

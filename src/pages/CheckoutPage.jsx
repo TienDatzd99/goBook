@@ -527,6 +527,34 @@ export default function CheckoutPage() {
     }
   }, [user, getToken]);
 
+  // Reactively calculate GHN shipping fee when address or items change
+  const activeDistrictId = (user && selectedAddressId) ? (addresses.find(a => a.id === selectedAddressId)?.district_id) : form.ghn_to_district_id;
+  const activeWardCode = (user && selectedAddressId) ? (addresses.find(a => a.id === selectedAddressId)?.ward_code) : form.ghn_to_ward_code;
+
+  useEffect(() => {
+    if (activeDistrictId && activeWardCode && items.length > 0) {
+      setGhnShippingLoading(true);
+      const weight = Math.max(500, Math.floor(items.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500);
+      fetch(`${API_BASE}/api/shipping/ghn/fee`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_district_id: activeDistrictId, to_ward_code: activeWardCode, weight }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.data?.total) {
+          setGhnShippingFee(data.data.total);
+        } else {
+          setGhnShippingFee(null);
+        }
+      })
+      .catch(() => setGhnShippingFee(null))
+      .finally(() => setGhnShippingLoading(false));
+    } else {
+      setGhnShippingFee(null);
+    }
+  }, [activeDistrictId, activeWardCode, items]);
+
+
   const handleAddNewAddress = async (e) => {
     e.preventDefault();
     
@@ -897,7 +925,7 @@ export default function CheckoutPage() {
                   <div className="form-group" style={{ zIndex: 100 }}>
                     <AddressDropdown
                       value={form.city}
-                      onSelect={async (sel) => {
+                      onSelect={(sel) => {
                         setForm(f => ({ ...f,
                           city: sel.display,
                           district: sel.districtName,
@@ -905,28 +933,6 @@ export default function CheckoutPage() {
                           ghn_to_district_id: sel.districtId,
                           ghn_to_ward_code: sel.wardCode,
                         }));
-                        // Calculate shipping fee via backend GHN proxy
-                        try {
-                          setGhnShippingLoading(true);
-                          const weight = Math.max(500, Math.floor(items.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500);
-                          const res = await fetch(`${API_BASE}/api/shipping/ghn/fee`, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ to_district_id: sel.districtId, to_ward_code: sel.wardCode, weight }),
-                          });
-                          const d = await res.json();
-                          if (res.ok && d.data && d.data.fee && d.data.service_fee) {
-                            // GHN v2 fee structure may vary; try common fields
-                            const fee = d.data.service_fee || d.data.fee || (d.data[0] && d.data[0].total) || 0;
-                            setGhnShippingFee(Number(fee) || 0);
-                          } else if (d.code === 200 && d.data && d.data.total) {
-                            setGhnShippingFee(Number(d.data.total) || 0);
-                          } else {
-                            setGhnShippingFee(null);
-                          }
-                        } catch (err) {
-                          console.error('GHN fee error', err);
-                          setGhnShippingFee(null);
-                        } finally { setGhnShippingLoading(false); }
                       }}
                     />
                   </div>
@@ -1127,31 +1133,10 @@ export default function CheckoutPage() {
                     ))}
                   </div>
                 )}
-                <button type="button" className="btn-login-prompt" style={{ width: '100%', textAlign: 'center' }} onClick={async () => {
-                  // Prefill new address modal with Hà Nội / Hà Đông / Mộ Lao
+                <button type="button" className="btn-login-prompt" style={{ width: '100%', textAlign: 'center' }} onClick={() => {
                   const pre = { name: '', phone: '', address: '', is_default: false, city: 'Phường Mộ Lao, Quận Hà Đông, Hà Nội', districtName: 'Quận Hà Đông', ghn_province_id: 201, ghn_to_district_id: 1542, ghn_to_ward_code: '1B1514' };
                   setNewAddrForm(pre);
-                  // Also set main form so checkout shows calculated fee
                   setForm(f => ({ ...f, city: pre.city, district: pre.districtName, ghn_province_id: pre.ghn_province_id, ghn_to_district_id: pre.ghn_to_district_id, ghn_to_ward_code: pre.ghn_to_ward_code }));
-                  // calculate fee
-                  try {
-                    setGhnShippingLoading(true);
-                    const weight = Math.max(500, Math.floor(items.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500);
-                    const res = await fetch(`${API_BASE}/api/shipping/ghn/fee`, {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ to_district_id: pre.ghn_to_district_id, to_ward_code: pre.ghn_to_ward_code, weight }),
-                    });
-                    const d = await res.json();
-                    if (res.ok && d.data && (d.data.service_fee || d.data.fee || d.data.total)) {
-                      const fee = d.data.service_fee || d.data.fee || d.data.total || (d.data[0] && d.data[0].total) || 0;
-                      setGhnShippingFee(Number(fee) || 0);
-                    } else {
-                      setGhnShippingFee(null);
-                    }
-                  } catch (err) {
-                    console.error('GHN fee prefill error', err);
-                    setGhnShippingFee(null);
-                  } finally { setGhnShippingLoading(false); }
                   setNewAddressMode(true);
                 }}>
                   + Thêm địa chỉ mới
