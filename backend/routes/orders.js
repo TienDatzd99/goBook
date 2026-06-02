@@ -411,6 +411,19 @@ router.delete('/:id', auth, adminOnly, (req, res) => {
   res.json({ message: 'Đã xóa đơn hàng' });
 });
 
+// PUT /api/orders/:id/ghn - admin: update GHN address fields (district_id, ward_code)
+router.put('/:id/ghn', auth, adminOnly, (req, res) => {
+  const { ghn_to_district_id, ghn_to_ward_code } = req.body;
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+
+  db.prepare('UPDATE orders SET ghn_to_district_id=?, ghn_to_ward_code=?, updated_at=datetime(\'now\','\'localtime\') WHERE id=?')
+    .run(ghn_to_district_id || null, ghn_to_ward_code || null, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  res.json({ success: true, order: updated });
+});
+
 // PUT /api/orders/:id/customer-cancel
 router.put('/:id/customer-cancel', auth, (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
