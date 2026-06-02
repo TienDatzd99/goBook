@@ -633,7 +633,42 @@ export default function CheckoutPage() {
     
     // Resolve which data to send based on whether user is logged in and selected an address
     let orderData = { ...form };
-    
+
+    // If user is logged in but hasn't selected a saved address, auto-save the address
+    if (user && !selectedAddressId && form.name && form.phone && form.address) {
+      try {
+        const createRes = await fetch(`${API_BASE}/api/users/me/addresses`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({
+            name: form.name,
+            phone: form.phone,
+            address: form.address,
+            is_default: 0,
+            ghn_province_id: form.ghn_province_id || null,
+            ghn_to_district_id: form.ghn_to_district_id || null,
+            ghn_to_ward_code: form.ghn_to_ward_code || null,
+            district: form.district || ''
+          })
+        });
+        if (createRes.ok) {
+          const newAddrs = await fetch(`${API_BASE}/api/users/me/addresses`, { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.json());
+          setAddresses(newAddrs);
+          const newest = newAddrs.find(a => a.name === form.name && a.address === form.address) || newAddrs[newAddrs.length-1];
+          if (newest) {
+            setSelectedAddressId(newest.id);
+            orderData.name = newest.name || orderData.name;
+            orderData.phone = newest.phone || orderData.phone;
+            orderData.address = newest.address || orderData.address;
+            orderData.ghn_to_district_id = newest.ghn_to_district_id || orderData.ghn_to_district_id;
+            orderData.ghn_to_ward_code = newest.ghn_to_ward_code || orderData.ghn_to_ward_code;
+          }
+        }
+      } catch (err) {
+        console.error('Auto-save address failed', err);
+      }
+    }
+
     if (user && addresses.length > 0 && selectedAddressId) {
       const selectedAddr = addresses.find(a => a.id === selectedAddressId);
       if (selectedAddr) {
@@ -644,9 +679,9 @@ export default function CheckoutPage() {
         orderData.district = '';
       }
     } else {
-      if (!form.name || !form.phone || !form.address) { 
-        setError('Vui lòng điền đầy đủ thông tin giao hàng.'); 
-        return; 
+      if (!form.name || !form.phone || !form.address) {
+        setError('Vui lòng điền đầy đủ thông tin giao hàng.');
+        return;
       }
     }
 
