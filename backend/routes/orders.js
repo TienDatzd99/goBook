@@ -364,6 +364,7 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
           items: itemsForGhn,
         };
 
+        console.debug('⚠️ GHN create payload (before request):', JSON.stringify(ghnPayload));
         const ghRes = await createGhnOrder(ghnPayload);
         const ghnCode = ghRes?.data?.order_code || ghRes?.data?.data?.order_code || null;
         const ghnFee = ghRes?.data?.data?.total_fee ?? ghRes?.data?.total_fee ?? 0;
