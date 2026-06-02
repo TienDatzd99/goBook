@@ -2,7 +2,23 @@ const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
 const db = require('../database');
+const { autoCreateGhnForOrder } = require('../services/ghn');
 const router = express.Router();
+
+async function confirmOrderPayment(orderCodeOrId, paymentRef = null) {
+  const order = db.prepare('SELECT * FROM orders WHERE code=? OR id=?').get(orderCodeOrId, orderCodeOrId);
+  if (order && order.status !== 'confirmed') {
+    if (paymentRef) {
+      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE id=?`).run(paymentRef, order.id);
+    } else {
+      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE id=?`).run(order.id);
+    }
+    console.log(`✅ [Payment] Confirmed: ${order.code}`);
+    autoCreateGhnForOrder(order.id).catch(err => console.error('GHN Auto Create failed:', err.message));
+    return true;
+  }
+  return false;
+}
 
 const { PayOS } = require('@payos/node');
 
@@ -118,8 +134,7 @@ router.get('/vnpay/callback', (req, res) => {
       const orderCode = req.query.vnp_TxnRef;
       const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderCode);
       if (order && order.status !== 'confirmed') {
-        db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE code=?`).run(orderCode);
-        console.log(`✅ [VNPay] Confirmed: ${orderCode}`);
+        confirmOrderPayment(orderCode);
       }
       res.json({ success: true, code: orderCode, message: 'Thanh toán thành công!' });
     } else {
@@ -148,7 +163,7 @@ router.post('/vnpay/ipn', (req, res) => {
 
     const responseCode = req.query.vnp_ResponseCode || req.body.vnp_ResponseCode;
     if (responseCode === '00') {
-      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE code=?`).run(orderCode);
+      confirmOrderPayment(orderCode);
     }
     res.json({ RspCode: '00', Message: 'Confirmed' });
   } catch (err) {
@@ -245,8 +260,7 @@ router.post('/momo/ipn', (req, res) => {
     if (parseInt(resultCode) === 0) {
       const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderId);
       if (order && order.status !== 'confirmed') {
-        db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE code=?`).run(orderId);
-        console.log(`✅ [MoMo IPN] Confirmed: ${orderId}`);
+        confirmOrderPayment(orderId);
       }
     }
     res.json({ status: 204, message: 'success' });
@@ -263,8 +277,7 @@ router.get('/momo/callback', (req, res) => {
   if (isSuccess) {
     const order = db.prepare('SELECT * FROM orders WHERE code=?').get(orderId);
     if (order && order.status !== 'confirmed') {
-      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE code=?`).run(orderId);
-      console.log(`✅ [MoMo Return] Confirmed: ${orderId}`);
+      confirmOrderPayment(orderId);
     }
   }
   res.json({
@@ -332,8 +345,7 @@ router.post('/vietqr/webhook', (req, res) => {
 
         if (amount >= (order.total - TOLERANCE)) {
           const paymentRef = tx.transaction_id || tx.trans_id || tx.id || null;
-          db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentRef, orderCode);
-          console.log(`✅ [VietQR Webhook] Confirmed: ${orderCode} amount:${amount} ref:${paymentRef}`);
+          confirmOrderPayment(orderCode, paymentRef);
           successCount++;
         } else {
           console.log(`⚠️ [VietQR Webhook] Amount mismatch for ${orderCode}: got ${amount}, expected ${order.total}`);
@@ -416,8 +428,7 @@ router.post('/payos/simulate', async (req, res) => {
     const paymentRef = verified.reference || verified.transactionId || verified.paymentLinkId || verified.data?.transaction_id || verified.data?.trans_id || verified.data?.id || null;
 
     if (amount >= (order.total - TOLERANCE)) {
-      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentRef, orderCode);
-      console.log(`✅ [PayOS Simulate] Confirmed: ${orderCode} amount:${amount} ref:${paymentRef}`);
+      confirmOrderPayment(orderCode, paymentRef);
       return res.json({ success: true, message: 'Simulated payment confirmed', code: orderCode });
     }
 
@@ -592,8 +603,7 @@ router.get('/payos/check-payment/:paymentLinkId', async (req, res) => {
       const order = db.prepare('SELECT * FROM orders WHERE payment_ref=?').get(paymentLinkId);
 
       if (order && order.status !== 'confirmed') {
-        db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', updated_at=datetime('now','localtime') WHERE id=?`).run(order.id);
-        console.log(`✅ [PayOS Check] Auto-confirmed: ${order.code}`);
+        confirmOrderPayment(order.id, paymentLinkId);
         return res.json({ success: true, message: 'Payment confirmed from PayOS', status: 'PAID', code: order.code, paymentLinkId });
       } else if (order && order.status === 'confirmed') {
         console.log(`ℹ️ [PayOS Check] Order ${order.code} already confirmed`);
@@ -655,8 +665,7 @@ router.post('/payos/webhook', async (req, res) => {
     const paymentRef = verified.reference || verified.transactionId || verified.paymentLinkId || verified.data?.transaction_id || verified.data?.trans_id || verified.data?.id || null;
 
     if (amount >= (order.total - TOLERANCE)) {
-      db.prepare(`UPDATE orders SET status='confirmed', payment_status='paid', payment_ref=?, updated_at=datetime('now','localtime') WHERE code=?`).run(paymentRef, orderCode);
-      console.log(`✅ [PayOS Webhook] Confirmed: ${orderCode} amount:${amount} ref:${paymentRef}`);
+      confirmOrderPayment(orderCode, paymentRef);
       return res.json({ success: true, message: 'Payment confirmed', code: orderCode });
     }
 

@@ -172,6 +172,61 @@ async function autoDeriveGhnAddress(addressText, districtText, cityText) {
   return { districtId: null, wardCode: null };
 }
 
+async function autoCreateGhnForOrder(orderId) {
+  const db = require('../database');
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
+  if (!order) return false;
+  if (!isGhnConfigured() || order.ghn_order_code) return false;
+
+  const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(order.id);
+  const itemsForGhn = orderItems.map(i => ({ name: i.product_name, quantity: i.quantity, price: i.price, sku: i.product_id || '' }));
+
+  let toDistrictId = order.ghn_to_district_id || Number(order.district) || 0;
+  let toWardCode = order.ghn_to_ward_code || '';
+
+  if (!toDistrictId || !toWardCode) {
+    const derived = await autoDeriveGhnAddress(order.address, order.district, order.city);
+    toDistrictId = derived.districtId || toDistrictId;
+    toWardCode = derived.wardCode || toWardCode;
+    if (toDistrictId && toWardCode) {
+      db.prepare('UPDATE orders SET ghn_to_district_id=?, ghn_to_ward_code=? WHERE id=?').run(toDistrictId, toWardCode, order.id);
+    }
+  }
+
+  if (!toDistrictId || !toWardCode) {
+    console.warn(`⚠️ GHN skipped auto-create: missing to_district_id or to_ward_code for order ${order.id}`);
+    return false;
+  }
+
+  const ghnPayload = {
+    to_name: order.customer_name,
+    to_phone: order.phone,
+    to_address: order.address,
+    to_district_id: toDistrictId,
+    to_ward_code: toWardCode,
+    cod_amount: order.payment_method === 'cod' ? order.total : 0,
+    weight: Math.max(500, Math.floor((orderItems.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500)),
+    length: 10,
+    width: 10,
+    height: 10,
+    items: itemsForGhn,
+  };
+
+  try {
+    const ghRes = await createOrder(ghnPayload);
+    const ghnCode = ghRes?.data?.order_code || ghRes?.data?.data?.order_code || null;
+    const ghnFee = ghRes?.data?.data?.total_fee ?? ghRes?.data?.total_fee ?? 0;
+    if (ghnCode) {
+      db.prepare(`UPDATE orders SET ghn_order_code=?, ghn_fee=?, updated_at=datetime('now','localtime') WHERE id=?`).run(ghnCode, ghnFee, order.id);
+      console.log(`📦 [GHN] Auto-created shipment ${ghnCode} for order ${order.code} after payment`);
+      return true;
+    }
+  } catch (err) {
+    console.error(`⚠️ GHN auto-create error for order ${order.code}:`, err?.response?.data || err.message || err);
+  }
+  return false;
+}
+
 module.exports = {
   calculateFee,
   createOrder,
@@ -183,4 +238,5 @@ module.exports = {
   isGhnConfigured,
   maskValue,
   autoDeriveGhnAddress,
+  autoCreateGhnForOrder,
 };
