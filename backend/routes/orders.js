@@ -417,7 +417,7 @@ router.put('/:id/ghn', auth, adminOnly, (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
 
-  db.prepare('UPDATE orders SET ghn_to_district_id=?, ghn_to_ward_code=?, updated_at=datetime(\'now\','\'localtime\') WHERE id=?')
+  db.prepare(`UPDATE orders SET ghn_to_district_id=?, ghn_to_ward_code=?, updated_at=datetime('now','localtime') WHERE id=?`)
     .run(ghn_to_district_id || null, ghn_to_ward_code || null, req.params.id);
 
   const updated = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
