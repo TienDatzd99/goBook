@@ -344,6 +344,7 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
 
   // When an order becomes confirmed, create GHN shipment if configured and not previously created
   if (status === 'confirmed') {
+    let ghnPayload = null;
     try {
       const updatedOrder = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
       if (isGhnConfigured() && !updatedOrder.ghn_order_code) {
@@ -385,10 +386,14 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
       }
     } catch (err) {
       console.error('⚠️ GHN create error:', err?.response?.status || '', err?.response?.data || err.message || err);
-      try {
-        console.error('⚠️ GHN create payload:', JSON.stringify(ghnPayload));
-      } catch (e) {
-        console.error('⚠️ GHN payload stringify error:', e.message || e);
+      if (ghnPayload) {
+        try {
+          console.error('⚠️ GHN create payload:', JSON.stringify(ghnPayload));
+        } catch (e) {
+          console.error('⚠️ GHN payload stringify error:', e.message || e);
+        }
+      } else {
+        console.error('⚠️ GHN create payload: <not set>');
       }
       // Return GHN error back to client for debugging (temporary)
       const ghnErr = err?.response?.data || err.message || 'Unknown GHN error';
