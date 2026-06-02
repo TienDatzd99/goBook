@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, adminOnly } = require('../middleware/auth');
 const { getTransporter } = require('../utils/mailer');
-const { createOrder: createGhnOrder, isGhnConfigured, getProvinces, getDistricts, getWards } = require('../services/ghn');
+const { createOrder: createGhnOrder, isGhnConfigured, getProvinces, getDistricts, getWards, autoDeriveGhnAddress } = require('../services/ghn');
 const { FREE_SHIPPING_THRESHOLD, DEFAULT_SHIPPING_FEE } = require('../config');
 const router = express.Router();
 
@@ -247,31 +247,10 @@ router.post('/', async (req, res) => {
   // Try to auto-derive GHN district and ward from address text when not provided
   let final_ghn_district = ghn_to_district_id || null;
   let final_ghn_ward = ghn_to_ward_code || null;
-  const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9\s]/g, '').trim();
   if ((!final_ghn_district || !final_ghn_ward) && isGhnConfigured()) {
-    try {
-      const text = [address, district, city].filter(Boolean).join(' ');
-      const ntext = normalize(text);
-      const provRes = await getProvinces();
-      const provinces = Array.isArray(provRes) ? provRes : (provRes.data || []);
-      let matchedProvince = provinces.find(p => ntext.includes(normalize(p.ProvinceName)) || normalize(p.ProvinceName).includes(ntext));
-      if (!matchedProvince && city) matchedProvince = provinces.find(p => normalize(p.ProvinceName).includes(normalize(city)) || normalize(city).includes(normalize(p.ProvinceName)));
-      if (matchedProvince) {
-        const districtsRes = await getDistricts(matchedProvince.ProvinceID);
-        const districtsList = Array.isArray(districtsRes) ? districtsRes : (districtsRes.data || []);
-        let matchedDistrict = districtsList.find(d => ntext.includes(normalize(d.DistrictName)) || normalize(d.DistrictName).includes(ntext));
-        if (!matchedDistrict && district) matchedDistrict = districtsList.find(d => normalize(d.DistrictName).includes(normalize(district)) || normalize(district).includes(normalize(d.DistrictName)));
-        if (matchedDistrict) {
-          final_ghn_district = matchedDistrict.DistrictID;
-          const wardsRes = await getWards(matchedDistrict.DistrictID);
-          const wardsList = Array.isArray(wardsRes) ? wardsRes : (wardsRes.data || []);
-          const matchedWard = wardsList.find(w => ntext.includes(normalize(w.WardName)) || normalize(w.WardName).includes(ntext));
-          if (matchedWard) final_ghn_ward = matchedWard.WardCode;
-        }
-      }
-    } catch (e) {
-      console.error('Auto-derive GHN failed:', e?.message || e);
-    }
+    const derived = await autoDeriveGhnAddress(address, district, city);
+    final_ghn_district = derived.districtId || final_ghn_district;
+    final_ghn_ward = derived.wardCode || final_ghn_ward;
   }
 
   const orderResult = db.prepare('INSERT INTO orders (code, user_id, customer_name, phone, email, address, city, district, note, ghn_to_district_id, ghn_to_ward_code, payment_method, status, subtotal, shipping_fee, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
@@ -376,8 +355,17 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
         const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(updatedOrder.id);
         const itemsForGhn = orderItems.map(i => ({ name: i.product_name, quantity: i.quantity, price: i.price, sku: i.product_id || '' }));
 
-        const toDistrictId = updatedOrder.ghn_to_district_id || Number(updatedOrder.district) || 0;
-        const toWardCode = updatedOrder.ghn_to_ward_code || '';
+        let toDistrictId = updatedOrder.ghn_to_district_id || Number(updatedOrder.district) || 0;
+        let toWardCode = updatedOrder.ghn_to_ward_code || '';
+
+        if (!toDistrictId || !toWardCode) {
+          const derived = await autoDeriveGhnAddress(updatedOrder.address, updatedOrder.district, updatedOrder.city);
+          toDistrictId = derived.districtId || toDistrictId;
+          toWardCode = derived.wardCode || toWardCode;
+          if (toDistrictId && toWardCode) {
+            db.prepare('UPDATE orders SET ghn_to_district_id=?, ghn_to_ward_code=? WHERE id=?').run(toDistrictId, toWardCode, updatedOrder.id);
+          }
+        }
 
         if (!toDistrictId || !toWardCode) {
           console.warn(`⚠️ GHN skipped: missing to_district_id or to_ward_code for order ${updatedOrder.id}`);

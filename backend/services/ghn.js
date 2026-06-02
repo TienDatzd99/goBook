@@ -140,6 +140,38 @@ async function createOrder(payload) {
   }
 }
 
+async function autoDeriveGhnAddress(addressText, districtText, cityText) {
+  if (!isGhnConfigured()) return { districtId: null, wardCode: null };
+  const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9\s]/g, '').trim();
+  try {
+    const text = [addressText, districtText, cityText].filter(Boolean).join(' ');
+    const ntext = normalize(text);
+    const provRes = await getProvinces();
+    const provinces = Array.isArray(provRes) ? provRes : (provRes.data || []);
+    let matchedProvince = provinces.find(p => ntext.includes(normalize(p.ProvinceName)) || normalize(p.ProvinceName).includes(ntext));
+    if (!matchedProvince && cityText) matchedProvince = provinces.find(p => normalize(p.ProvinceName).includes(normalize(cityText)) || normalize(cityText).includes(normalize(p.ProvinceName)));
+    
+    if (matchedProvince) {
+      const districtsRes = await getDistricts(matchedProvince.ProvinceID);
+      const districtsList = Array.isArray(districtsRes) ? districtsRes : (districtsRes.data || []);
+      let matchedDistrict = districtsList.find(d => ntext.includes(normalize(d.DistrictName)) || normalize(d.DistrictName).includes(ntext));
+      if (!matchedDistrict && districtText) matchedDistrict = districtsList.find(d => normalize(d.DistrictName).includes(normalize(districtText)) || normalize(districtText).includes(normalize(d.DistrictName)));
+      
+      if (matchedDistrict) {
+        let derivedDistrictId = matchedDistrict.DistrictID;
+        const wardsRes = await getWards(matchedDistrict.DistrictID);
+        const wardsList = Array.isArray(wardsRes) ? wardsRes : (wardsRes.data || []);
+        const matchedWard = wardsList.find(w => ntext.includes(normalize(w.WardName)) || normalize(w.WardName).includes(ntext));
+        
+        return { districtId: derivedDistrictId, wardCode: matchedWard ? matchedWard.WardCode : null };
+      }
+    }
+  } catch (e) {
+    console.error('Auto-derive GHN failed:', e?.message || e);
+  }
+  return { districtId: null, wardCode: null };
+}
+
 module.exports = {
   calculateFee,
   createOrder,
@@ -150,4 +182,5 @@ module.exports = {
   getWards,
   isGhnConfigured,
   maskValue,
+  autoDeriveGhnAddress,
 };
