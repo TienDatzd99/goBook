@@ -274,11 +274,7 @@ router.post('/', async (req, res) => {
     }
   }
 
-  const orderResult = db.prepare(`
-    INSERT INTO orders (code, user_id, customer_name, phone, email, address, city, district, note,
-      ghn_to_district_id, ghn_to_ward_code, payment_method, status, subtotal, shipping_fee, total)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ).run(
+  const orderResult = db.prepare('INSERT INTO orders (code, user_id, customer_name, phone, email, address, city, district, note, ghn_to_district_id, ghn_to_ward_code, payment_method, status, subtotal, shipping_fee, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     code,
     user_id || null,
     customer_name, phone, email || '', address,
@@ -292,9 +288,7 @@ router.post('/', async (req, res) => {
 
   const orderId = orderResult.lastInsertRowid;
   console.log(`📝 [Order] Created: ${code} (ID=${orderId})`);
-  const insertItem = db.prepare(
-    `INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity, subtotal) VALUES (?,?,?,?,?,?,?)`
-  );
+  const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, product_name, product_image, price, quantity, subtotal) VALUES (?,?,?,?,?,?,?)');
 
   items.forEach(item => {
     // Chống lỗi Foreign Key do ID giỏ hàng (Local Storage) không khớp ID thật trong SQLite
