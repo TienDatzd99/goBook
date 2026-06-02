@@ -326,6 +326,7 @@ router.post('/', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.put('/:id/status', auth, adminOnly, async (req, res) => {
   const { status } = req.body;
+  console.log(`🛎️ [Order] status update request: id=${req.params.id} status=${status} by user=${req.user?.id || 'anonymous'}`);
   const validStatuses = ['pending', 'confirmed', 'shipping', 'delivered', 'cancelled'];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
 
