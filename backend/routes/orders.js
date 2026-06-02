@@ -350,12 +350,20 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
         const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(updatedOrder.id);
         const itemsForGhn = orderItems.map(i => ({ name: i.product_name, quantity: i.quantity, price: i.price, sku: i.product_id || '' }));
 
+        const toDistrictId = updatedOrder.ghn_to_district_id || Number(updatedOrder.district) || 0;
+        const toWardCode = updatedOrder.ghn_to_ward_code || '';
+
+        if (!toDistrictId || !toWardCode) {
+          console.warn(`⚠️ GHN skipped: missing to_district_id or to_ward_code for order ${updatedOrder.id}`);
+          return res.status(400).json({ error: 'GHN skipped: missing to_district_id or to_ward_code' });
+        }
+
         const ghnPayload = {
           to_name: updatedOrder.customer_name,
           to_phone: updatedOrder.phone,
           to_address: updatedOrder.address,
-          to_district_id: updatedOrder.ghn_to_district_id || Number(updatedOrder.district) || 0,
-          to_ward_code: updatedOrder.ghn_to_ward_code || '',
+          to_district_id: toDistrictId,
+          to_ward_code: toWardCode,
           cod_amount: updatedOrder.payment_method === 'cod' ? updatedOrder.total : 0,
           weight: Math.max(500, Math.floor((orderItems.reduce((s,i) => s + (i.weight || 0) * i.quantity, 0)) || 500)),
           length: 10,
