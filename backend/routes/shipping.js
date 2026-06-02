@@ -34,7 +34,9 @@ router.get('/ghn/provinces', async (req, res) => {
     const data = await getProvinces();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Không tải được danh sách tỉnh/thành từ GHN' });
+    const status = err?.response?.status || 500;
+    const message = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Không tải được danh sách tỉnh/thành từ GHN';
+    res.status(status).json({ error: message });
   }
 });
 
@@ -44,7 +46,9 @@ router.get('/ghn/districts/:provinceId', async (req, res) => {
     const data = await getDistricts(req.params.provinceId);
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Không tải được danh sách quận/huyện từ GHN' });
+    const status = err?.response?.status || 500;
+    const message = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Không tải được danh sách quận/huyện từ GHN';
+    res.status(status).json({ error: message });
   }
 });
 
@@ -54,7 +58,9 @@ router.get('/ghn/wards/:districtId', async (req, res) => {
     const data = await getWards(req.params.districtId);
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Không tải được danh sách phường/xã từ GHN' });
+    const status = err?.response?.status || 500;
+    const message = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Không tải được danh sách phường/xã từ GHN';
+    res.status(status).json({ error: message });
   }
 });
 
@@ -84,7 +90,9 @@ router.post('/ghn/fee', async (req, res) => {
 
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Không tính được phí GHN' });
+    const status = err?.response?.status || 500;
+    const message = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Không tính được phí GHN';
+    res.status(status).json({ error: message });
   }
 });
 
@@ -94,7 +102,9 @@ router.post('/ghn/order', async (req, res) => {
     const data = await createOrder(req.body || {});
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Không tạo được đơn GHN' });
+    const status = err?.response?.status || 500;
+    const message = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Không tạo được đơn GHN';
+    res.status(status).json({ error: message });
   }
 });
 
