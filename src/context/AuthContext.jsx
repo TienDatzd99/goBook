@@ -105,6 +105,24 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
+  // Request password reset email
+  const requestPasswordReset = useCallback(async (email) => {
+    const data = await requestJSON('/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return data;
+  }, []);
+
+  // Reset password using one-time token
+  const resetPassword = useCallback(async (token, password) => {
+    const data = await requestJSON('/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+    return data;
+  }, []);
+
   // Verify email token (called from VerifyEmailPage)
   const verifyEmail = useCallback(async (token) => {
     const data = await requestJSON(`/verify-email?token=${token}`);
@@ -120,7 +138,7 @@ export function AuthProvider({ children }) {
   const getToken = useCallback(() => localStorage.getItem('mlb_token'), []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, resendVerification, verifyEmail, logout, getToken }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, resendVerification, requestPasswordReset, resetPassword, verifyEmail, logout, getToken }}>
       {children}
     </AuthContext.Provider>
   );

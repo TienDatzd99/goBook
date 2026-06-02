@@ -123,6 +123,79 @@ async function sendVerificationEmail(to, name, token) {
   }
 }
 
+// ── Send password reset email ──
+async function sendPasswordResetEmail(to, name, token) {
+  try {
+    if (!isMailConfigured()) {
+      console.log('📧 [DEV] Mail not configured, skipping email send');
+      return { messageId: 'dev-' + Math.random().toString(36).substr(2, 9), previewUrl: null };
+    }
+
+    const resend = getResendClient();
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/dat-lai-mat-khau?token=${token}`;
+
+    console.log(`📬 Sending password reset email to ${to}...`);
+
+    const response = await resend.emails.send({
+      from: getMailFrom(),
+      to,
+      subject: '🔐 Đặt lại mật khẩu - goBook',
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    .card { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #d32f2f, #7b1fa2); padding: 36px 32px; text-align: center; }
+    .header h1 { color: #fff; margin: 0; font-size: 24px; }
+    .header p { color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px; }
+    .body { padding: 32px; }
+    .greeting { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; }
+    .text { color: #555; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    .btn { display: block; text-align: center; background: linear-gradient(135deg, #d32f2f, #7b1fa2); color: #fff !important; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 700; margin: 0 auto; max-width: 260px; }
+    .note { margin-top: 24px; font-size: 12px; color: #999; border-top: 1px solid #f0f0f0; padding-top: 16px; }
+    .link-alt { word-break: break-all; color: #d32f2f; font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>📚 goBook</h1>
+      <p>Ươm mầm tri thức</p>
+    </div>
+    <div class="body">
+      <div class="greeting">Xin chào ${name || 'bạn'}! 🔐</div>
+      <p class="text">
+        Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản goBook của bạn.<br/>
+        Nhấn vào nút bên dưới để tạo mật khẩu mới:
+      </p>
+      <a href="${resetUrl}" class="btn">Đặt lại mật khẩu</a>
+      <div class="note">
+        Link có hiệu lực trong <strong>60 phút</strong> và chỉ dùng được một lần.<br/>
+        Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.<br/>
+        <div class="link-alt">Hoặc copy link: ${resetUrl}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+      `,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    console.log(`✅ Password reset email sent to ${to}, messageId: ${response.data.id}`);
+    return { messageId: response.data.id, previewUrl: null };
+  } catch (err) {
+    console.error(`❌ Gửi email đặt lại mật khẩu thất bại: ${err.message}`);
+    throw err;
+  }
+}
+
 // ── Send welcome email after verification ──
 async function sendWelcomeEmail(to, name) {
   try {
@@ -227,4 +300,4 @@ async function sendAICustomEmail(to, name, subject, content) {
   }
 }
 
-module.exports = { sendVerificationEmail, sendWelcomeEmail, sendAICustomEmail, getTransporter, isMailConfigured, getMailFrom };
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail, sendAICustomEmail, getTransporter, isMailConfigured, getMailFrom };

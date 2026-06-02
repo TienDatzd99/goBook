@@ -4,11 +4,12 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('../database');
-const { sendVerificationEmail, sendWelcomeEmail, isMailConfigured } = require('../utils/mailer');
+const { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail, isMailConfigured } = require('../utils/mailer');
 const router = express.Router();
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const REQUIRE_EMAIL_VERIFICATION = process.env.REQUIRE_EMAIL_VERIFICATION === 'true';
+const AUTH_RATE_LIMITS = new Map();
 
 // ── Helper: sign JWT ──
 function signToken(user) {
@@ -48,10 +49,90 @@ function mapMailError(err) {
   return 'Không gửi được email xác minh. Vui lòng thử lại sau.';
 }
 
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded && typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function createRateLimit({ key, windowMs, max, message }) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip = getClientIp(req);
+    const mapKey = `${key}:${ip}`;
+    const entry = AUTH_RATE_LIMITS.get(mapKey);
+
+    if (!entry || entry.resetAt <= now) {
+      AUTH_RATE_LIMITS.set(mapKey, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    entry.count += 1;
+    AUTH_RATE_LIMITS.set(mapKey, entry);
+
+    if (AUTH_RATE_LIMITS.size > 5000) {
+      for (const [cacheKey, cacheEntry] of AUTH_RATE_LIMITS.entries()) {
+        if (cacheEntry.resetAt <= now) AUTH_RATE_LIMITS.delete(cacheKey);
+      }
+    }
+
+    if (entry.count > max) {
+      res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+      return res.status(429).json({ error: message });
+    }
+
+    next();
+  };
+}
+
+const loginRateLimit = createRateLimit({
+  key: 'login',
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.',
+});
+
+const registerRateLimit = createRateLimit({
+  key: 'register',
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Bạn đã đăng ký quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.',
+});
+
+const resendVerificationRateLimit = createRateLimit({
+  key: 'resend-verification',
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: 'Bạn đã yêu cầu gửi lại email quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.',
+});
+
+const forgotPasswordRateLimit = createRateLimit({
+  key: 'forgot-password',
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Bạn đã yêu cầu đặt lại mật khẩu quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.',
+});
+
+const resetPasswordRateLimit = createRateLimit({
+  key: 'reset-password',
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Bạn thao tác đặt lại mật khẩu quá nhanh. Vui lòng chờ ít phút rồi thử lại.',
+});
+
+const googleLoginRateLimit = createRateLimit({
+  key: 'google-login',
+  windowMs: 15 * 60 * 1000,
+  max: 12,
+  message: 'Bạn đã thử đăng nhập Google quá nhiều lần. Vui lòng chờ ít phút rồi thử lại.',
+});
+
 // ───────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register
 // ───────────────────────────────────────────────────────────────────────────────
-router.post('/register', async (req, res) => {
+router.post('/register', registerRateLimit, async (req, res) => {
   const { name, email, password, phone } = req.body;
   const emailVerificationEnabled = REQUIRE_EMAIL_VERIFICATION;
   const mailReady = isMailConfigured();
@@ -132,7 +213,7 @@ router.post('/register', async (req, res) => {
 // ───────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/login
 // ───────────────────────────────────────────────────────────────────────────────
-router.post('/login', (req, res) => {
+router.post('/login', loginRateLimit, (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Vui lòng nhập email và mật khẩu' });
 
@@ -157,7 +238,7 @@ router.post('/login', (req, res) => {
 // ───────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/google – Google OAuth login/register
 // ───────────────────────────────────────────────────────────────────────────────
-router.post('/google', async (req, res) => {
+router.post('/google', googleLoginRateLimit, async (req, res) => {
   const { credential, googleUser } = req.body;
   if (!credential && !googleUser) return res.status(400).json({ error: 'Google credential is required' });
 
@@ -267,7 +348,7 @@ router.get('/verify-email', async (req, res) => {
 // ───────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/resend-verification
 // ───────────────────────────────────────────────────────────────────────────────
-router.post('/resend-verification', async (req, res) => {
+router.post('/resend-verification', resendVerificationRateLimit, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
 
@@ -297,6 +378,70 @@ router.post('/resend-verification', async (req, res) => {
     console.error('❌ Resend verification mail failed:', err.message);
     res.status(500).json({ error: mapMailError(err) });
   }
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/forgot-password
+// ───────────────────────────────────────────────────────────────────────────────
+router.post('/forgot-password', forgotPasswordRateLimit, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
+
+  if (!isMailConfigured()) {
+    return res.status(503).json({ error: 'Hệ thống email chưa sẵn sàng. Vui lòng thử lại sau.' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE email=? AND is_active=1').get(email.toLowerCase());
+
+  if (!user) {
+    return res.json({
+      success: true,
+      message: 'Nếu email tồn tại, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu trong ít phút.',
+    });
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+  db.prepare('UPDATE users SET reset_password_token=?, reset_password_token_expires=? WHERE id=?')
+    .run(resetToken, resetTokenExpires, user.id);
+
+  try {
+    await sendPasswordResetEmail(user.email, user.name, resetToken);
+    res.json({
+      success: true,
+      message: 'Nếu email tồn tại, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu trong ít phút.',
+    });
+  } catch (err) {
+    db.prepare('UPDATE users SET reset_password_token=NULL, reset_password_token_expires=NULL WHERE id=?').run(user.id);
+    console.error('❌ Password reset mail failed:', err.message);
+    return res.status(500).json({ error: mapMailError(err) });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/reset-password
+// ───────────────────────────────────────────────────────────────────────────────
+router.post('/reset-password', resetPasswordRateLimit, (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Thiếu thông tin bắt buộc' });
+  if (password.length < 6) return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 6 ký tự' });
+
+  const user = db.prepare('SELECT * FROM users WHERE reset_password_token=? AND is_active=1').get(token);
+  if (!user) return res.status(400).json({ error: 'Token không hợp lệ hoặc đã được sử dụng' });
+
+  if (user.reset_password_token_expires && new Date() > new Date(user.reset_password_token_expires)) {
+    return res.status(400).json({ error: 'Link đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu gửi lại.' });
+  }
+
+  const hash = bcrypt.hashSync(password, 10);
+  db.prepare(`
+    UPDATE users
+    SET password_hash=?, reset_password_token=NULL, reset_password_token_expires=NULL, updated_at=datetime('now','localtime')
+    WHERE id=?
+  `).run(hash, user.id);
+
+  res.json({ success: true, message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới.' });
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

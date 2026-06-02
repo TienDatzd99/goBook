@@ -228,6 +228,22 @@ db.exec(`
   );
 `);
 
+function ensureUserColumns() {
+  const columns = db.prepare('PRAGMA table_info(users)').all().map((row) => row.name);
+  const additions = [
+    ['reset_password_token', 'TEXT'],
+    ['reset_password_token_expires', 'TEXT'],
+  ];
+
+  for (const [columnName, columnType] of additions) {
+    if (!columns.includes(columnName)) {
+      db.prepare(`ALTER TABLE users ADD COLUMN ${columnName} ${columnType}`).run();
+    }
+  }
+}
+
+ensureUserColumns();
+
 // ─── SEED DATA ─────────────────────────────────────────────────────────────────
 function seedDatabase() {
   const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;

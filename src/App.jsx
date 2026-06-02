@@ -17,7 +17,9 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
 import SearchPage from './pages/SearchPage';
 import OrderTrackingPage from './pages/OrderTrackingPage';
@@ -97,6 +99,8 @@ export default function App() {
                 {/* ── Customer Auth pages (no layout) ── */}
                 <Route path="/dang-nhap" element={<LoginPage />} />
                 <Route path="/dang-ky" element={<LoginPage />} />
+                <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
+                <Route path="/dat-lai-mat-khau" element={<ResetPasswordPage />} />
                 <Route path="/xac-thuc-email" element={<VerifyEmailPage />} />
                 <Route path="/thanh-toan/ket-qua" element={<PaymentReturnPage />} />
 

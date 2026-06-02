@@ -384,7 +384,7 @@ export default function LoginPage() {
 
           {isLogin && (
             <div className="forgot-link">
-              <a href="#">Quên mật khẩu?</a>
+              <Link to="/quen-mat-khau">Quên mật khẩu?</Link>
             </div>
           )}
 
