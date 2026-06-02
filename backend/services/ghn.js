@@ -89,8 +89,16 @@ async function calculateFee(payload) {
     coupon: String(payload.coupon || ''),
   };
 
-  const res = await client.post('/shiip/public-api/v2/shipping-order/fee', body);
-  return res.data;
+  try {
+    const res = await client.post('/shiip/public-api/v2/shipping-order/fee', body);
+    if (res && res.data) {
+      console.debug('[GHN] calculateFee response:', JSON.stringify(res.data));
+    }
+    return res.data;
+  } catch (err) {
+    console.error('[GHN] calculateFee error:', err?.response?.status, err?.response?.data || err.message);
+    throw err;
+  }
 }
 
 async function createOrder(payload) {
@@ -119,8 +127,17 @@ async function createOrder(payload) {
     items: Array.isArray(payload.items) ? payload.items : [],
   };
 
-  const res = await client.post('/shiip/public-api/v2/shipping-order/create', body);
-  return res.data;
+  try {
+    console.debug('[GHN] createOrder request body:', JSON.stringify({ shop_id: body.shop_id, client_id: body.client_id, to_name: body.to_name, to_phone: body.to_phone, to_address: body.to_address, to_district_id: body.to_district_id }));
+    const res = await client.post('/shiip/public-api/v2/shipping-order/create', body);
+    if (res && res.data) {
+      console.debug('[GHN] createOrder response:', JSON.stringify(res.data));
+    }
+    return res.data;
+  } catch (err) {
+    console.error('[GHN] createOrder error:', err?.response?.status, err?.response?.data || err.message);
+    throw err;
+  }
 }
 
 module.exports = {
