@@ -375,7 +375,12 @@ router.put('/:id/status', auth, adminOnly, async (req, res) => {
         }
       }
     } catch (err) {
-      console.error('GHN create error:', err.message || err);
+      console.error('⚠️ GHN create error:', err?.response?.status || '', err?.response?.data || err.message || err);
+      try {
+        console.error('⚠️ GHN create payload:', JSON.stringify(ghnPayload));
+      } catch (e) {
+        console.error('⚠️ GHN payload stringify error:', e.message || e);
+      }
     }
   }
 
