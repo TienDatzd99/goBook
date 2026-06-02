@@ -558,9 +558,9 @@ export default function CheckoutPage() {
           phone: newAddrForm.phone,
           address: fullAddress,
           is_default: newAddrForm.is_default ? 1 : 0,
-          ghn_province_id: newAddrForm.ghn_province_id || null,
-          ghn_to_district_id: newAddrForm.ghn_to_district_id || null,
-          ghn_to_ward_code: newAddrForm.ghn_to_ward_code || null,
+          province_id: newAddrForm.ghn_province_id || null,
+          district_id: newAddrForm.ghn_to_district_id || null,
+          ward_code: newAddrForm.ghn_to_ward_code || null,
           district: newAddrForm.districtName || ''
         })
       });
@@ -647,9 +647,9 @@ export default function CheckoutPage() {
             phone: form.phone,
             address: form.address,
             is_default: 0,
-            ghn_province_id: form.ghn_province_id || null,
-            ghn_to_district_id: form.ghn_to_district_id || null,
-            ghn_to_ward_code: form.ghn_to_ward_code || null,
+            province_id: form.ghn_province_id || null,
+            district_id: form.ghn_to_district_id || null,
+            ward_code: form.ghn_to_ward_code || null,
             district: form.district || ''
           })
         });
@@ -662,8 +662,8 @@ export default function CheckoutPage() {
             orderData.name = newest.name || orderData.name;
             orderData.phone = newest.phone || orderData.phone;
             orderData.address = newest.address || orderData.address;
-            orderData.ghn_to_district_id = newest.ghn_to_district_id || orderData.ghn_to_district_id;
-            orderData.ghn_to_ward_code = newest.ghn_to_ward_code || orderData.ghn_to_ward_code;
+            orderData.ghn_to_district_id = newest.district_id || orderData.ghn_to_district_id;
+            orderData.ghn_to_ward_code = newest.ward_code || orderData.ghn_to_ward_code;
           }
         }
       } catch (err) {
@@ -674,7 +674,7 @@ export default function CheckoutPage() {
     if (user && addresses.length > 0 && selectedAddressId) {
       const selectedAddr = addresses.find(a => a.id === selectedAddressId);
       if (selectedAddr) {
-        if (!selectedAddr.ghn_to_district_id || !selectedAddr.ghn_to_ward_code) {
+        if (!selectedAddr.district_id || !selectedAddr.ward_code) {
           setError('Địa chỉ đã lưu thiếu thông tin Tỉnh/Thành, Quận/Huyện, Phường/Xã từ hệ thống mới. Vui lòng thêm lại địa chỉ mới để tiếp tục.');
           return;
         }
@@ -683,8 +683,8 @@ export default function CheckoutPage() {
         orderData.address = selectedAddr.address;
         orderData.city = '';
         orderData.district = '';
-        orderData.ghn_to_district_id = selectedAddr.ghn_to_district_id;
-        orderData.ghn_to_ward_code = selectedAddr.ghn_to_ward_code;
+        orderData.ghn_to_district_id = selectedAddr.district_id;
+        orderData.ghn_to_ward_code = selectedAddr.ward_code;
       }
     } else {
       if (!form.name || !form.phone || !form.address) {
