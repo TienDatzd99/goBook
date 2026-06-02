@@ -898,7 +898,7 @@ export default function CheckoutPage() {
                       value={form.city}
                       onSelect={async (sel) => {
                         setForm(f => ({ ...f,
-                          city: sel.provinceName,
+                          city: sel.display,
                           district: sel.districtName,
                           ghn_province_id: sel.provinceId,
                           ghn_to_district_id: sel.districtId,
@@ -927,7 +927,6 @@ export default function CheckoutPage() {
                           setGhnShippingFee(null);
                         } finally { setGhnShippingLoading(false); }
                       }}
-                      onChange={val => setForm({...form, city: val})}
                     />
                   </div>
                 </div>
@@ -1095,8 +1094,7 @@ export default function CheckoutPage() {
                 <div className="form-group">
                   <AddressDropdown
                     value={newAddrForm.city || ''}
-                    onSelect={sel => setNewAddrForm({...newAddrForm, city: sel.provinceName, districtName: sel.districtName, ghn_province_id: sel.provinceId, ghn_to_district_id: sel.districtId, ghn_to_ward_code: sel.wardCode })}
-                    onChange={val => setNewAddrForm({...newAddrForm, city: val})}
+                    onSelect={sel => setNewAddrForm(f => ({...f, city: sel.display, districtName: sel.districtName, ghn_province_id: sel.provinceId, ghn_to_district_id: sel.districtId, ghn_to_ward_code: sel.wardCode }))}
                   />
                   {addrErrors.city && <span style={{color: '#d32f2f', fontSize: '12px'}}>{addrErrors.city}</span>}
                 </div>
@@ -1130,7 +1128,7 @@ export default function CheckoutPage() {
                 )}
                 <button type="button" className="btn-login-prompt" style={{ width: '100%', textAlign: 'center' }} onClick={async () => {
                   // Prefill new address modal with Hà Nội / Hà Đông / Mộ Lao
-                  const pre = { name: '', phone: '', address: '', is_default: false, city: 'Hà Nội', districtName: 'Quận Hà Đông', ghn_province_id: 201, ghn_to_district_id: 1542, ghn_to_ward_code: '1B1514' };
+                  const pre = { name: '', phone: '', address: '', is_default: false, city: 'Phường Mộ Lao, Quận Hà Đông, Hà Nội', districtName: 'Quận Hà Đông', ghn_province_id: 201, ghn_to_district_id: 1542, ghn_to_ward_code: '1B1514' };
                   setNewAddrForm(pre);
                   // Also set main form so checkout shows calculated fee
                   setForm(f => ({ ...f, city: pre.city, district: pre.districtName, ghn_province_id: pre.ghn_province_id, ghn_to_district_id: pre.ghn_to_district_id, ghn_to_ward_code: pre.ghn_to_ward_code }));
