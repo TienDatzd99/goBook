@@ -10,6 +10,7 @@ import Footer from './components/Footer/Footer';
 import CartDrawer from './components/CartDrawer/CartDrawer';
 import ToastContainer from './components/Toast/ToastContainer';
 import CustomerAI from './components/CustomerAI';
+import ScrollToTop from './components/ScrollToTop';
 
 // Customer pages
 import HomePage from './pages/HomePage';
@@ -76,6 +77,7 @@ function MinimalLayout({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AdminAuthProvider>
         <AuthProvider>
           <WishlistProvider>
