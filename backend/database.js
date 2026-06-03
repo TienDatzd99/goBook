@@ -286,6 +286,20 @@ try {
   console.warn('DB products migration warning:', e.message || e);
 }
 
+// Set some products as new/bestseller if none are set (e.g. after reseeding)
+try {
+  const hasNew = db.prepare('SELECT COUNT(*) as c FROM products WHERE is_new = 1').get().c;
+  if (hasNew === 0) {
+    db.prepare('UPDATE products SET is_new = 1 WHERE id IN (SELECT id FROM products ORDER BY id DESC LIMIT 15)').run();
+  }
+  const hasBestseller = db.prepare('SELECT COUNT(*) as c FROM products WHERE is_bestseller = 1').get().c;
+  if (hasBestseller === 0) {
+    db.prepare('UPDATE products SET is_bestseller = 1 WHERE review_count >= 200').run();
+  }
+} catch (e) {
+  console.warn('DB products fallback tags warning:', e.message || e);
+}
+
 function ensureUserColumns() {
   const columns = db.prepare('PRAGMA table_info(users)').all().map((row) => row.name);
   const additions = [
@@ -379,13 +393,16 @@ async function seedDatabase() {
   catRows.forEach(c => catMap[c.slug] = c.id);
 
   if (productsToSeed.length > 0) {
-    productsToSeed.forEach(p => {
+    productsToSeed.forEach((p, i) => {
       try {
         const imgs = p.images ? JSON.stringify(p.images) : JSON.stringify([p.image].filter(Boolean));
+        const isNew = (i >= productsToSeed.length - 15) ? 1 : 0;
+        const isBestseller = (p.reviews >= 200) ? 1 : 0;
+        
         insertProd.run(
           p.name, p.slug, p.price, p.originalPrice || p.price, p.discount || 0, p.stock || 100,
           catMap[p.category] || null, p.publisher || '', p.author || '', p.description || '', p.image || '',
-          p.isNew ? 1 : 0, p.isBestseller ? 1 : 0, p.sku || '', p.rating || 4.5, p.reviews || 0,
+          isNew, isBestseller, p.sku || '', p.rating || 4.5, p.reviews || 0,
           p.pdfUrl || null, imgs
         );
       } catch(e) { }

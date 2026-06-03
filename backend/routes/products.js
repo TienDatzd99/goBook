@@ -181,13 +181,16 @@ router.post('/reseed', auth, adminOnly, async (req, res) => {
       // Xóa hết sản phẩm cũ trước khi import
       db.prepare('DELETE FROM products').run();
       
-      productsToSeed.forEach(p => {
+      productsToSeed.forEach((p, i) => {
         try {
           const imgs = p.images ? JSON.stringify(p.images) : JSON.stringify([p.image].filter(Boolean));
+          const isNew = (i >= productsToSeed.length - 15) ? 1 : 0;
+          const isBestseller = (p.reviews >= 200) ? 1 : 0;
+          
           insertProd.run(
             p.name, p.slug, p.price, p.originalPrice || p.price, p.discount || 0, p.stock || 100,
             catMap[p.category] || null, p.publisher || '', p.author || '', p.description || '', p.image || '',
-            p.isNew ? 1 : 0, p.isBestseller ? 1 : 0, p.sku || '', p.rating || 4.5, p.reviews || 0, p.pdfUrl || null, imgs
+            isNew, isBestseller, p.sku || '', p.rating || 4.5, p.reviews || 0, p.pdfUrl || null, imgs
           );
           count++;
         } catch(e) { }
