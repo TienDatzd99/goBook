@@ -345,9 +345,10 @@ async function seedDatabase() {
   // Load real products if available
   let productsToSeed = [];
   try {
-    const productsRealPath = 'file://' + path.join(__dirname, '../src/data/products_real.js').replace(/\\/g, '/');
-    const module = await import(productsRealPath);
-    productsToSeed = module.mlbProducts || [];
+    const productsRealPath = path.join(__dirname, '../src/data/products_real.js');
+    const content = fs.readFileSync(productsRealPath, 'utf8');
+    const arrayStr = content.substring(content.indexOf('['), content.lastIndexOf('];') + 1);
+    productsToSeed = JSON.parse(arrayStr);
   } catch (err) {
     console.warn('Could not load products_real.js for seeding:', err.message);
   }

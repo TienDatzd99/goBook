@@ -149,10 +149,17 @@ router.delete('/:id', auth, adminOnly, (req, res) => {
 // POST /api/products/reseed - admin only (Force seed 500 products)
 router.post('/reseed', auth, adminOnly, async (req, res) => {
   try {
+    const fs = require('fs');
     const path = require('path');
-    const productsRealPath = 'file://' + path.join(__dirname, '../../src/data/products_real.js').replace(/\\/g, '/');
-    const module = await import(productsRealPath);
-    const productsToSeed = module.mlbProducts || [];
+    const productsRealPath = path.join(__dirname, '../../src/data/products_real.js');
+    let productsToSeed = [];
+    try {
+      const content = fs.readFileSync(productsRealPath, 'utf8');
+      const arrayStr = content.substring(content.indexOf('['), content.lastIndexOf('];') + 1);
+      productsToSeed = JSON.parse(arrayStr);
+    } catch (err) {
+      console.warn('Could not load products_real.js for seeding:', err.message);
+    }
     
     if (productsToSeed.length === 0) {
       return res.status(400).json({ error: 'Không tìm thấy dữ liệu mẫu trong file products_real.js' });
