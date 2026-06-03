@@ -22,7 +22,7 @@ if (typeof genAIInitError === 'undefined') genAIInitError = null;
 const systemInstruction = `
 Bạn là Trợ lý AI Chăm sóc Khách hàng của nhà sách goBook.
 Nhiệm vụ của bạn:
-1. Tư vấn sách: Dựa trên nhu cầu của khách (ví dụ: sách kinh doanh, sách có bản đọc thử), sử dụng tool search_products để tìm kiếm và đề xuất.
+1. Tư vấn sách: Dựa trên nhu cầu của khách (ví dụ: sách kinh doanh, sách có bản đọc thử, sách đánh giá cao, sách bán chạy), sử dụng tool search_products để tìm kiếm và đề xuất.
 2. Kiểm tra đơn hàng: Nếu khách cung cấp mã đơn (ví dụ MLB00000001), dùng tool check_order_status để báo cáo tình trạng đơn.
 3. Hỗ trợ khiếu nại: Hướng dẫn khách hàng vào phần Tài khoản -> Đơn hàng -> bấm Khiếu nại nếu họ gặp vấn đề với đơn hàng đã giao.
 
@@ -39,12 +39,14 @@ QUY TẮC CỨNG:
 const tools = [
   {
     name: 'search_products',
-    description: 'Tìm kiếm sách trong kho dựa trên từ khóa (tên sách, tác giả, hoặc thể loại). Hoặc tìm kiếm sách có bản đọc thử.',
+    description: 'Tìm kiếm sách trong kho dựa trên từ khóa (tên sách, tác giả, hoặc thể loại). Hoặc tìm kiếm sách có bản đọc thử, sách bán chạy, sách đánh giá cao.',
     parameters: {
       type: 'OBJECT',
       properties: {
-        keyword: { type: 'STRING', description: 'Từ khóa tìm kiếm (ví dụ: kinh doanh, thiếu nhi, đắc nhân tâm). Để trống nếu chỉ muốn tìm sách có bản đọc thử.' },
-        hasPreview: { type: 'BOOLEAN', description: 'Đặt là true nếu khách hàng yêu cầu tìm sách có bản đọc thử.' }
+        keyword: { type: 'STRING', description: 'Từ khóa tìm kiếm (ví dụ: kinh doanh, thiếu nhi, đắc nhân tâm). Để trống nếu chỉ muốn tìm theo tiêu chí khác.' },
+        hasPreview: { type: 'BOOLEAN', description: 'Đặt là true nếu khách hàng yêu cầu tìm sách có bản đọc thử/pdf.' },
+        highlyRated: { type: 'BOOLEAN', description: 'Đặt là true nếu khách hàng muốn tìm sách được đánh giá cao (từ 4.5 sao trở lên).' },
+        bestSelling: { type: 'BOOLEAN', description: 'Đặt là true nếu khách hàng muốn tìm sách bán chạy, được mua nhiều.' }
       }
     }
   },
@@ -73,9 +75,11 @@ async function handleToolCall(functionCall) {
     if (name === 'search_products') {
       const keyword = args.keyword || '';
       const hasPreview = args.hasPreview === true;
+      const highlyRated = args.highlyRated === true;
+      const bestSelling = args.bestSelling === true;
       
       let query = `
-        SELECT p.name, p.slug, p.price, p.discount, c.name as category_name
+        SELECT p.name, p.slug, p.price, p.discount, p.rating, p.review_count, c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE 1=1
@@ -91,6 +95,16 @@ async function handleToolCall(functionCall) {
         query += ` AND (p.pdf_url IS NOT NULL AND p.pdf_url != '')`;
       }
       
+      if (highlyRated) {
+        query += ` AND p.rating >= 4.5`;
+      }
+      
+      if (bestSelling) {
+        query += ` ORDER BY p.review_count DESC`;
+      } else {
+        query += ` ORDER BY p.created_at DESC`;
+      }
+      
       query += ` LIMIT 5`;
 
       const products = db.prepare(query).all(...params);
@@ -102,7 +116,9 @@ async function handleToolCall(functionCall) {
           name: p.name,
           url: `/san-pham/${p.slug}`,
           price: p.price,
-          category: p.category_name
+          category: p.category_name,
+          rating: p.rating,
+          reviews: p.review_count
         })) 
       };
     }
