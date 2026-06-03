@@ -302,7 +302,12 @@ export default function Campaigns() {
                         <input 
                           type="number" 
                           value={item.discount_percent}
-                          onChange={e => updateItem(item.product_id, 'discount_percent', Number(e.target.value))}
+                          onChange={e => {
+                            let val = Number(e.target.value);
+                            if (val > 100) val = 100;
+                            if (val < 0) val = 0;
+                            updateItem(item.product_id, 'discount_percent', val);
+                          }}
                           min={0} max={100}
                         />
                       </div>
@@ -313,7 +318,12 @@ export default function Campaigns() {
                           type="number" 
                           className="sp-price"
                           value={item.campaign_price}
-                          onChange={e => updateItem(item.product_id, 'campaign_price', Number(e.target.value))}
+                          onChange={e => {
+                            let val = Number(e.target.value);
+                            if (val < 0) val = 0;
+                            if (val > item.original_price) val = item.original_price;
+                            updateItem(item.product_id, 'campaign_price', val);
+                          }}
                         />
                       </div>
                     </div>

@@ -277,7 +277,11 @@ export default function Vouchers() {
                   {/* Value */}
                   <div className="a-field">
                     <label className="a-label">Giá trị giảm {modal.data.type === 'percent' ? '(%)' : '(₫)'} *</label>
-                    <input className="a-input" type="number" value={modal.data.value} onChange={e => setField('value', e.target.value)} required min="1" max={modal.data.type === 'percent' ? 100 : undefined} placeholder={modal.data.type === 'percent' ? 'VD: 20' : 'VD: 50000'} />
+                    <input className="a-input" type="number" value={modal.data.value} onChange={e => {
+                      let val = e.target.value;
+                      if (modal.data.type === 'percent' && Number(val) > 100) val = '100';
+                      setField('value', val);
+                    }} required min="1" max={modal.data.type === 'percent' ? 100 : undefined} placeholder={modal.data.type === 'percent' ? 'VD: 20' : 'VD: 50000'} />
                   </div>
 
                   {/* Min order */}
