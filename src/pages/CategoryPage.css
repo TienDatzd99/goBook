@@ -1,4 +1,5 @@
 .category-page { padding: 16px 0 40px; background: var(--bg-light); min-height: 60vh; }
+.category-main { min-width: 0; }
 .sidebar { position: sticky; top: 140px; }
 .sidebar-widget {
   background: #fff;
