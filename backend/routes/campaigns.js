@@ -102,7 +102,28 @@ router.put('/:id', auth, adminOnly, (req, res) => {
 // Xóa chiến dịch
 router.delete('/:id', auth, adminOnly, (req, res) => {
   try {
-    db.prepare('DELETE FROM campaigns WHERE id = ?').run(req.params.id);
+    const campaign = db.prepare('SELECT slug FROM campaigns WHERE id = ?').get(req.params.id);
+    if (!campaign) return res.status(404).json({ error: 'Không tìm thấy chiến dịch' });
+
+    db.transaction(() => {
+      // Xóa chiến dịch
+      db.prepare('DELETE FROM campaigns WHERE id = ?').run(req.params.id);
+
+      // Xóa khỏi layout trang chủ
+      db.prepare('DELETE FROM homepage_layout WHERE section_id = ?').run(`campaign_${campaign.slug}`);
+
+      // Xóa khỏi menu header
+      const menuSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('header_menu');
+      if (menuSetting && menuSetting.value) {
+        let menuItems = JSON.parse(menuSetting.value);
+        const originalLength = menuItems.length;
+        menuItems = menuItems.filter(item => item.url !== `/collections/${campaign.slug}`);
+        if (menuItems.length !== originalLength) {
+          db.prepare('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?').run(JSON.stringify(menuItems), 'header_menu');
+        }
+      }
+    })();
+
     res.json({ message: 'Đã xóa chiến dịch' });
   } catch (error) {
     res.status(500).json({ error: error.message });
