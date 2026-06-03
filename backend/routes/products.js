@@ -176,7 +176,9 @@ router.post('/reseed', auth, adminOnly, async (req, res) => {
 
     let count = 0;
     db.transaction(() => {
-      // Tùy chọn: Xóa hết sản phẩm cũ trước khi import (chỉ giữ nếu muốn)
+      // Set product_id in order_items to NULL to avoid FOREIGN KEY constraint error
+      db.prepare('UPDATE order_items SET product_id = NULL').run();
+      // Xóa hết sản phẩm cũ trước khi import
       db.prepare('DELETE FROM products').run();
       
       productsToSeed.forEach(p => {
