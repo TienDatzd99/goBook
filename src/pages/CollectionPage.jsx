@@ -105,15 +105,30 @@ export default function CollectionPage() {
                 ))}
               </div>
 
-              {totalPages > 1 && (
-                <div className="pagination" style={{ marginTop: 40, display: 'flex', justifyContent: 'center', gap: 8 }}>
-                  <button className="page-btn" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>‹</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
-                    <button key={n} className={`page-btn ${page === n ? 'active' : ''}`} onClick={() => setPage(n)}>{n}</button>
-                  ))}
-                  <button className="page-btn" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</button>
-                </div>
-              )}
+              {totalPages > 1 && (() => {
+                let pages = [];
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else {
+                  if (page <= 4) pages = [1, 2, 3, 4, 5, '...', totalPages];
+                  else if (page >= totalPages - 3) pages = [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+                  else pages = [1, '...', page - 1, page, page + 1, '...', totalPages];
+                }
+                
+                return (
+                  <div className="pagination" style={{ marginTop: 40, display: 'flex', justifyContent: 'center', gap: 8 }}>
+                    <button className="page-btn" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>‹</button>
+                    {pages.map((n, idx) => (
+                      n === '...' ? (
+                        <span key={`ellipsis-${idx}`} className="pagination-ellipsis" style={{ padding: '0 8px', color: '#999', display: 'flex', alignItems: 'center' }}>...</span>
+                      ) : (
+                        <button key={n} className={`page-btn ${page === n ? 'active' : ''}`} onClick={() => setPage(n)}>{n}</button>
+                      )
+                    ))}
+                    <button className="page-btn" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</button>
+                  </div>
+                );
+              })()}
             </>
           ) : (
             <div className="empty-state" style={{ padding: 60, textAlign: 'center' }}>
