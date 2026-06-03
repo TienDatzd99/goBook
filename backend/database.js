@@ -500,24 +500,43 @@ async function seedDatabase() {
 
 function seedLayout() {
   const layoutCount = db.prepare('SELECT COUNT(*) as c FROM homepage_layout').get().c;
-  if (layoutCount > 0) return;
+  if (layoutCount === 0) {
+    const layouts = [
+      ['flash_sale', 'Flash Sale', 1, 1],
+      ['new_books', 'Sách Mới Lên Kệ', 2, 1],
+      ['best_sellers', 'Top Sách Bán Chạy', 3, 1],
+      ['combos', 'Combo Bán Chạy', 4, 1],
+      ['toys', 'Đồ Chơi Giáo Dục', 5, 1],
+      ['blog', 'Điểm Sách & Chia Sẻ', 6, 1],
+      ['newsletter', 'Đăng ký nhận thông tin', 7, 1]
+    ];
+    const insertLayout = db.prepare(`
+      INSERT INTO homepage_layout (section_id, name, order_index, is_visible)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(section_id) DO NOTHING
+    `);
+    layouts.forEach(l => insertLayout.run(...l));
+    console.log('✅ Homepage layout seeded!');
+  }
 
-  const layouts = [
-    ['flash_sale', 'Flash Sale', 1, 1],
-    ['new_books', 'Sách Mới Lên Kệ', 2, 1],
-    ['best_sellers', 'Top Sách Bán Chạy', 3, 1],
-    ['combos', 'Combo Bán Chạy', 4, 1],
-    ['toys', 'Đồ Chơi Giáo Dục', 5, 1],
-    ['blog', 'Điểm Sách & Chia Sẻ', 6, 1],
-    ['newsletter', 'Đăng ký nhận thông tin', 7, 1]
-  ];
-  const insertLayout = db.prepare(`
-    INSERT INTO homepage_layout (section_id, name, order_index, is_visible)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(section_id) DO NOTHING
-  `);
-  layouts.forEach(l => insertLayout.run(...l));
-  console.log('✅ Homepage layout seeded!');
+  // Seed header_menu if missing
+  const headerMenuCheck = db.prepare("SELECT value FROM settings WHERE key = 'header_menu'").get();
+  if (!headerMenuCheck) {
+    const defaultMenu = [
+      { id: '1', label: 'Deal Sinh Nhật 18K', url: '/collections/mung-sinh-nhat', icon: '🎂', highlight_class: 'nav-link-hot', is_visible: true },
+      { id: '2', label: 'Flash Sale', url: '/collections/flash-sale', icon: '⚡', highlight_class: 'nav-link-sale', is_visible: true },
+      { id: '3', label: 'Sách Mới', url: '/danh-muc/sach-moi', icon: '', highlight_class: '', is_visible: true },
+      { id: '4', label: 'Văn Học', url: '/danh-muc/van-hoc', icon: '', highlight_class: '', is_visible: true },
+      { id: '5', label: 'Kỹ Năng Sống', url: '/danh-muc/ky-nang-song', icon: '', highlight_class: '', is_visible: true },
+      { id: '6', label: 'Thiếu Nhi', url: '/danh-muc/sach-thieu-nhi', icon: '', highlight_class: '', is_visible: true },
+      { id: '7', label: 'Nuôi Dạy Con', url: '/danh-muc/nuoi-day-con', icon: '', highlight_class: '', is_visible: true },
+      { id: '8', label: 'Combo', url: '/danh-muc/combo', icon: '', highlight_class: '', is_visible: true },
+      { id: '9', label: 'Đồ Chơi', url: '/danh-muc/do-choi', icon: '', highlight_class: '', is_visible: true },
+      { id: '10', label: 'Điểm sách', url: '/diem-sach', icon: '', highlight_class: '', is_visible: true }
+    ];
+    db.prepare("INSERT INTO settings (key, value) VALUES ('header_menu', ?)").run(JSON.stringify(defaultMenu));
+    console.log('✅ Default header menu seeded!');
+  }
 }
 
 async function init() {
