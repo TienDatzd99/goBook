@@ -88,7 +88,7 @@ export default function CustomerAI() {
         onClick={() => setIsOpen(true)}
         style={{
           position: 'fixed',
-          bottom: 24,
+          bottom: 100,
           right: 24,
           width: 60,
           height: 60,
