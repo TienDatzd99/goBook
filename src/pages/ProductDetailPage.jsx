@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import ProductCard from '../components/ProductCard/ProductCard';
-import { BookOpen, Maximize, ShoppingCart, CheckCircle, User } from 'lucide-react';
-import { getProductBySlug, getRelatedProducts } from '../data/products';
+import { BookOpen, Maximize, ShoppingCart, CheckCircle, User, Loader2 } from 'lucide-react';
 import './ProductDetailPage.css';
 
 function formatPrice(n) { return n.toLocaleString('vi-VN') + '₫'; }
@@ -69,8 +68,11 @@ function ReadPreviewModal({ product, onClose }) {
 export default function ProductDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const product = getProductBySlug(slug);
   const { addItem } = useCart();
+
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [related, setRelated] = useState([]);
 
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState('desc');
@@ -80,11 +82,35 @@ export default function ProductDetailPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   // Gallery images: cover + interior previews
-  const images = product?.images || (product ? [product.image] : []);
+  const images = product?.images?.length ? product.images : (product ? [product.image] : []);
 
-  // Reset active image when product changes
+  // Fetch Product
   useEffect(() => { 
+    if (!slug) return;
+    setLoading(true);
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products/${slug}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setProduct(data);
+          // Fetch related
+          if (data.category_slug) {
+            fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products?category=${data.category_slug}&limit=6`)
+              .then(r => r.json())
+              .then(rel => {
+                if (rel.data) setRelated(rel.data.filter(p => p.id !== data.id).slice(0, 5));
+              })
+              .catch(console.error);
+          }
+        } else {
+          setProduct(null);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+
     setActiveImg(0); 
+    setTab('desc');
     window.scrollTo(0, 0);
   }, [slug]);
 
@@ -113,6 +139,14 @@ export default function ProductDetailPage() {
   const handlePrev = useCallback(() => setActiveImg(i => (i - 1 + images.length) % images.length), [images.length]);
   const handleNext = useCallback(() => setActiveImg(i => (i + 1) % images.length), [images.length]);
 
+  if (loading) {
+    return (
+      <div className="container" style={{ padding: '100px 0', textAlign: 'center' }}>
+        <Loader2 className="spinner" size={40} color="var(--primary)" />
+      </div>
+    );
+  }
+
   if (!product) {
     return (
       <div className="container" style={{ padding: '60px 0', textAlign: 'center' }}>
@@ -121,8 +155,6 @@ export default function ProductDetailPage() {
       </div>
     );
   }
-
-  const related = getRelatedProducts(product);
 
   const handleAddToCart = () => {
     addItem(product, qty);
@@ -137,7 +169,7 @@ export default function ProductDetailPage() {
         <div className="breadcrumb">
           <Link to="/">Trang chủ</Link>
           <span>›</span>
-          <Link to={`/danh-muc/${product.category}`}>{product.category}</Link>
+          <Link to={`/danh-muc/${product.category_slug}`}>{product.category_name}</Link>
           <span>›</span>
           <span>{product.name}</span>
         </div>
@@ -387,7 +419,7 @@ export default function ProductDetailPage() {
                   <tr><td>ISBN</td><td>{product.sku}</td></tr>
                   <tr><td>Nhà xuất bản</td><td>{product.publisher}</td></tr>
                   {product.author && <tr><td>Tác giả</td><td>{product.author}</td></tr>}
-                  <tr><td>Danh mục</td><td>{product.category}</td></tr>
+                  <tr><td>Danh mục</td><td>{product.category_name}</td></tr>
                   <tr><td>Tình trạng</td><td>{product.stock > 0 ? `Còn ${product.stock} cuốn` : 'Hết hàng'}</td></tr>
                    <tr><td>Xếp hạng</td><td>⭐ {Number(reviewAvg).toFixed(1)} / 5 ({reviewCount} đánh giá)</td></tr>
                 </tbody>

@@ -1,10 +1,19 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { products } from '../data/products';
 import ProductCard from '../components/ProductCard/ProductCard';
 import './NotFoundPage.css';
 
 export default function NotFoundPage() {
-  const suggested = products.filter(p => p.isBestseller).slice(0, 5);
+  const [suggested, setSuggested] = useState([]);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products?is_bestseller=1&limit=5`)
+      .then(res => res.json())
+      .then(d => {
+        if (d.data) setSuggested(d.data);
+      })
+      .catch(console.error);
+  }, []);
 
   return (
     <div className="not-found-page">

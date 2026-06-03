@@ -3,13 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { categories } from '../../data/products';
+import { useCategories } from '../../context/CategoryContext';
 import CategoryIcon from '../CategoryIcon';
 import { BookOpen } from 'lucide-react';
-
-// Nhóm riêng: sách và đồ chơi
-const bookCats = categories.filter(c => c.slug !== 'do-choi');
-const toyCats  = categories.filter(c => c.slug === 'do-choi');
 
 import SearchDropdown from './SearchDropdown';
 import './Header.css';
@@ -18,6 +14,11 @@ export default function Header() {
   const { count, setIsOpen } = useCart();
   const { user, logout } = useAuth();
   const { count: wishCount } = useWishlist();
+  const { categories } = useCategories();
+  
+  const bookCats = categories.filter(c => c.slug !== 'do-choi');
+  const toyCats  = categories.filter(c => c.slug === 'do-choi');
+
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -294,7 +295,7 @@ export default function Header() {
                       <span className="cat-icon"><CategoryIcon slug={cat.slug} size={20} /></span>
                       <div>
                         <div className="cat-name">{cat.name}</div>
-                        <div className="cat-count">{cat.count} sản phẩm</div>
+                        <div className="cat-count">{cat.product_count || 0} sản phẩm</div>
                       </div>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="cat-arrow">
                         <path d="M9 18l6-6-6-6"/>
@@ -387,7 +388,7 @@ export default function Header() {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <CategoryIcon slug={cat.slug} size={14} /> {cat.name}
                   </span>
-                  <span className="mobile-cat-count">{cat.count}</span>
+                  <span className="mobile-cat-count">{cat.product_count || 0}</span>
                 </Link>
               ))}
               <div className="mobile-nav-label" style={{ marginTop: 12 }}>Đồ Chơi</div>
@@ -401,7 +402,7 @@ export default function Header() {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <CategoryIcon slug={cat.slug} size={14} /> {cat.name}
                   </span>
-                  <span className="mobile-cat-count">{cat.count}</span>
+                  <span className="mobile-cat-count">{cat.product_count || 0}</span>
                 </Link>
               ))}
             </div>

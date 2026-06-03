@@ -1,21 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard/ProductCard';
-import { products } from '../data/products';
+import { Loader2 } from 'lucide-react';
 
 export default function SearchPage() {
   const [searchParams] = useSearchParams();
   const q = searchParams.get('q') || '';
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (q) {
-      const r = products.filter(p =>
-        p.name.toLowerCase().includes(q.toLowerCase()) ||
-        p.author.toLowerCase().includes(q.toLowerCase()) ||
-        p.description.toLowerCase().includes(q.toLowerCase())
-      );
-      setResults(r);
+      setLoading(true);
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products?search=${encodeURIComponent(q)}&limit=50`)
+        .then(res => res.json())
+        .then(data => {
+          setResults(data.data || []);
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false));
     } else {
       setResults([]);
     }
@@ -31,7 +34,11 @@ export default function SearchPage() {
         <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 20 }}>
           Kết quả cho "{q}" ({results.length} sản phẩm)
         </h1>
-        {results.length > 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+            <Loader2 className="spinner" size={40} color="var(--primary)" />
+          </div>
+        ) : results.length > 0 ? (
           <div className="product-grid product-grid-4">
             {results.map(p => <ProductCard key={p.id} product={p} />)}
           </div>

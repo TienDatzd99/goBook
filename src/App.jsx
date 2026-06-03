@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { CategoryProvider } from './context/CategoryContext';
 
 // Customer UI components
 import Header from './components/Header/Header';
@@ -78,8 +79,9 @@ export default function App() {
       <AdminAuthProvider>
         <AuthProvider>
           <WishlistProvider>
-            <CartProvider>
-              <Routes>
+            <CategoryProvider>
+              <CartProvider>
+                <Routes>
                 {/* ── Admin Routes ── */}
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
@@ -120,7 +122,8 @@ export default function App() {
                 <Route path="/collections/:slug" element={<CustomerLayout><CollectionPage /></CustomerLayout>} />
                 <Route path="*" element={<CustomerLayout><NotFoundPage /></CustomerLayout>} />
               </Routes>
-            </CartProvider>
+              </CartProvider>
+            </CategoryProvider>
           </WishlistProvider>
         </AuthProvider>
       </AdminAuthProvider>

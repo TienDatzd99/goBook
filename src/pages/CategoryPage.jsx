@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard/ProductCard';
-import { products, categories } from '../data/products';
 import CategoryIcon from '../components/CategoryIcon';
-import { BookOpen, Gamepad2 } from 'lucide-react';
+import { BookOpen, Gamepad2, Loader2 } from 'lucide-react';
+import { useCategories } from '../context/CategoryContext';
 import './CategoryPage.css';
 
 const SORT_OPTIONS = [
@@ -22,10 +22,6 @@ const PRICE_RANGES = [
   { label: 'Trên 500.000₫', min: 500000, max: Infinity },
 ];
 
-// Nhóm danh mục
-const BOOK_CATEGORIES = categories.filter(c => c.slug !== 'do-choi');
-const TOY_CATEGORIES  = categories.filter(c => c.slug === 'do-choi');
-
 // Slug đặc biệt
 const SPECIAL_SLUGS = { 'sach-moi': true, 'ban-chay': true };
 
@@ -34,11 +30,22 @@ const MAX_PRICE = 1000000;
 
 export default function CategoryPage() {
   const { slug } = useParams();
+  const { categories, loading: catsLoading } = useCategories();
+  
   const [sort, setSort] = useState('default');
   const [priceMin, setPriceMin] = useState(MIN_PRICE);
   const [priceMax, setPriceMax] = useState(MAX_PRICE);
   const [page, setPage] = useState(1);
   const PER_PAGE = 12;
+
+  const [products, setProducts] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  // Nhóm danh mục (dựa vào categories từ context)
+  const bookCats = categories.filter(c => c.slug !== 'do-choi');
+  const toyCats  = categories.filter(c => c.slug === 'do-choi');
 
   useEffect(() => {
     setPage(1);
@@ -46,6 +53,35 @@ export default function CategoryPage() {
     setPriceMin(MIN_PRICE);
     setPriceMax(MAX_PRICE);
   }, [slug]);
+
+  useEffect(() => {
+    setLoading(true);
+    let url = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products?page=${page}&limit=${PER_PAGE}`;
+    
+    if (slug === 'sach-moi') url += '&is_new=1';
+    else if (slug === 'ban-chay') url += '&is_bestseller=1';
+    else if (slug !== 'all') url += `&category=${slug}`;
+    
+    if (priceMin > MIN_PRICE) url += `&min_price=${priceMin}`;
+    if (priceMax < MAX_PRICE) url += `&max_price=${priceMax}`;
+    
+    if (sort !== 'default') {
+      if (sort === 'price-asc') url += '&sort=price_asc';
+      else if (sort === 'price-desc') url += '&sort=price_desc';
+      else if (sort === 'discount') url += '&sort=discount_desc';
+      else if (sort === 'rating') url += '&sort=rating_desc';
+    }
+
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        setProducts(data.data || []);
+        setTotal(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [slug, sort, priceMin, priceMax, page]);
 
   // Tên trang
   const category = categories.find(c => c.slug === slug);
@@ -56,30 +92,6 @@ export default function CategoryPage() {
     slug === 'ban-chay'      ? 'Sách Bán Chạy' :
     category                 ? category.name :
                                'Sản phẩm';
-
-  // Lọc sản phẩm theo slug
-  let filtered;
-  if (slug === 'all') {
-    // Tất cả sách — KHÔNG bao gồm đồ chơi
-    filtered = products.filter(p => p.category !== 'do-choi');
-  } else if (slug === 'sach-moi') {
-    filtered = products
-      .filter(p => p.available && p.category !== 'do-choi')
-      .sort((a, b) => b.id - a.id);
-  } else if (slug === 'ban-chay') {
-    filtered = products.filter(p => p.available && p.reviews >= 200 && p.category !== 'do-choi');
-  } else {
-    filtered = products.filter(p => p.category === slug);
-  }
-
-  filtered = filtered.filter(p => p.price >= priceMin && p.price <= priceMax);
-  if (sort === 'price-asc')  filtered = [...filtered].sort((a, b) => a.price - b.price);
-  else if (sort === 'price-desc') filtered = [...filtered].sort((a, b) => b.price - a.price);
-  else if (sort === 'discount')   filtered = [...filtered].sort((a, b) => b.discount - a.discount);
-  else if (sort === 'rating')     filtered = [...filtered].sort((a, b) => b.rating - a.rating);
-
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const isToyPage = slug === 'do-choi';
 
@@ -113,7 +125,7 @@ export default function CategoryPage() {
                     </div>
                   </Link>
                 </li>
-                {BOOK_CATEGORIES.map(cat => (
+                {bookCats.map(cat => (
                   <li key={cat.id}>
                     <Link
                       to={`/danh-muc/${cat.slug}`}
@@ -126,7 +138,7 @@ export default function CategoryPage() {
                         </span>
                         <span>{cat.name}</span>
                       </div>
-                      <span className="cat-count-badge">{cat.count}</span>
+                      <span className="cat-count-badge">{cat.product_count || 0}</span>
                     </Link>
                   </li>
                 ))}
@@ -137,7 +149,7 @@ export default function CategoryPage() {
             <div className="sidebar-widget">
               <h3 className="sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Gamepad2 size={18} /> Đồ Chơi</h3>
               <ul className="sidebar-cats">
-                {TOY_CATEGORIES.map(cat => (
+                {toyCats.map(cat => (
                   <li key={cat.id}>
                     <Link
                       to={`/danh-muc/${cat.slug}`}
@@ -150,7 +162,7 @@ export default function CategoryPage() {
                         </span>
                         <span>{cat.name}</span>
                       </div>
-                      <span className="cat-count-badge">{cat.count}</span>
+                      <span className="cat-count-badge">{cat.product_count || 0}</span>
                     </Link>
                   </li>
                 ))}
@@ -253,7 +265,7 @@ export default function CategoryPage() {
           <div className="category-main">
             <div className="category-toolbar">
               <div className="result-count">
-                <strong>{filtered.length}</strong> sản phẩm
+                <strong>{total}</strong> sản phẩm
                 {slug && slug !== 'all' && !SPECIAL_SLUGS[slug] && category &&
                   <span> trong <em>{category.name}</em></span>
                 }
@@ -268,10 +280,14 @@ export default function CategoryPage() {
               </div>
             </div>
 
-            {paginated.length > 0 ? (
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+                <Loader2 className="spinner" size={40} color="var(--primary)" />
+              </div>
+            ) : products.length > 0 ? (
               <>
                 <div className="product-grid product-grid-4">
-                  {paginated.map(product => (
+                  {products.map(product => (
                     <ProductCard key={product.id} product={product} />
                   ))}
                 </div>

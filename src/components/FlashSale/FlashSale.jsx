@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../ProductCard/ProductCard';
-import { flashSaleProducts } from '../../data/products';
 import { Zap } from 'lucide-react';
 import './FlashSale.css';
 
@@ -40,7 +39,7 @@ export default function FlashSale({ products, campaignSlug = 'flash-sale', title
     return () => clearInterval(t);
   }, [endTime]);
 
-  const sourceProducts = campaignData || products || flashSaleProducts;
+  const sourceProducts = campaignData || products || [];
   
   // Use useMemo so that we don't recalculate random numbers on every 1-second tick
   const displayProducts = useMemo(() => {

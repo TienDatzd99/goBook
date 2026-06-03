@@ -3,25 +3,38 @@ import { Link } from 'react-router-dom';
 import HeroSlider from '../components/HeroSlider/HeroSlider';
 import FlashSale from '../components/FlashSale/FlashSale';
 import ProductSection from '../components/ProductSection/ProductSection';
-import { newProducts, bestsellerProducts, comboProducts, toyProducts, flashSaleProducts, categories, products as allProducts } from '../data/products';
 import { blogPosts } from '../data/blogs';
 import CategoryIcon from '../components/CategoryIcon';
 import { Sparkles, Flame, PackageSearch, Gamepad2 } from 'lucide-react';
+import { useCategories } from '../context/CategoryContext';
 import './HomePage.css';
 
 export default function HomePage() {
   const [layout, setLayout] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [allProducts, setAllProducts] = useState([]);
+  const { categories } = useCategories();
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/settings/homepage`)
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setLayout(data);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    // Fetch layout and products in parallel
+    Promise.all([
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/settings/homepage`).then(r => r.json()),
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products?limit=1000`).then(r => r.json())
+    ])
+    .then(([layoutData, productsData]) => {
+      if (Array.isArray(layoutData)) setLayout(layoutData);
+      if (productsData && Array.isArray(productsData.data)) setAllProducts(productsData.data);
+    })
+    .catch(console.error)
+    .finally(() => setLoading(false));
   }, []);
+
+  // Derive product collections from allProducts
+  const flashSaleProducts = allProducts.filter(p => p.discount >= 25 && p.category_slug !== 'do-choi').slice(0, 8);
+  const newProducts = allProducts.filter(p => p.is_new && p.category_slug !== 'do-choi').slice(0, 10);
+  const bestsellerProducts = allProducts.filter(p => p.is_bestseller && p.category_slug !== 'do-choi').slice(0, 10);
+  const comboProducts = allProducts.filter(p => p.category_slug === 'combo').slice(0, 8);
+  const toyProducts = allProducts.filter(p => p.category_slug === 'do-choi').slice(0, 8);
 
   const renderComponent = (item) => {
     // Parse selected items

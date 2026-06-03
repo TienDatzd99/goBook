@@ -1,16 +1,10 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard/ProductCard';
-import { products } from '../data/products';
+import { useWishlist } from '../context/WishlistContext';
 import './WishlistPage.css';
 
-// Simulate a wishlist with some products
-const defaultWishlist = products.slice(0, 6);
-
 export default function WishlistPage() {
-  const [wishlist, setWishlist] = useState(defaultWishlist);
-
-  const remove = (id) => setWishlist(w => w.filter(p => p.id !== id));
+  const { items: wishlist, toggle: remove } = useWishlist();
 
   return (
     <div className="wishlist-page">
@@ -42,7 +36,7 @@ export default function WishlistPage() {
               <div key={p.id} className="wishlist-item">
                 <button
                   className="wishlist-remove"
-                  onClick={() => remove(p.id)}
+                  onClick={() => remove(p)}
                   title="Xóa khỏi yêu thích"
                 >✕</button>
                 <ProductCard product={p} />

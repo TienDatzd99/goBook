@@ -288,7 +288,7 @@ function ensureUserColumns() {
 ensureUserColumns();
 
 // ─── SEED DATA ─────────────────────────────────────────────────────────────────
-function seedDatabase() {
+async function seedDatabase() {
   const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
   if (userCount > 0) return; // Already seeded
 
@@ -327,38 +327,56 @@ function seedDatabase() {
   const insertCat = db.prepare(`INSERT INTO categories (name, slug, icon, sort_order) VALUES (?, ?, ?, ?)`);
   cats.forEach(c => insertCat.run(...c));
 
-  // Products
+  // Load real products if available
+  let productsToSeed = [];
+  try {
+    const productsRealPath = 'file://' + path.join(__dirname, '../src/data/products_real.js').replace(/\\/g, '/');
+    const module = await import(productsRealPath);
+    productsToSeed = module.mlbProducts || [];
+  } catch (err) {
+    console.warn('Could not load products_real.js for seeding:', err.message);
+  }
+
+  // Fallback sample products if products_real is empty
   const bookCovers = [
     'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop',
     'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=400&fit=crop',
     'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop',
     'https://images.unsplash.com/photo-1495640388908-05fa85288e61?w=300&h=400&fit=crop',
     'https://images.unsplash.com/photo-1476275466078-4007374efbbe?w=300&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=300&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1550399105-c4db5fb85c18?w=300&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1621944190310-e3cca1564bd7?w=300&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1589998059171-988d887df646?w=300&h=400&fit=crop',
   ];
-
-  const products = [
+  const fallbackProducts = [
     ['Chuẩn Mực Công Việc Mới', 'chuan-muc-cong-viec-moi', 71500, 110000, 35, 50, 1, 'NXB Hà Nội', 'Bùi Mạnh Chiến', 'Thay Đổi Văn Hóa Làm Việc Quá Sức', bookCovers[0], 1, 0, '8936238101603', 4.8, 124],
     ['Công Việc Của Bạn Có Đáng Làm Không', 'cong-viec-co-dang-lam', 105000, 140000, 25, 35, 1, 'NXB Hà Nội', 'Châu Thiên Ái', 'Khám Phá Và Suy Ngẫm Về Ý Nghĩa Công Việc', bookCovers[1], 1, 1, '8936238101597', 4.6, 89],
     ['Triết Lí To To Cho Đám Trẻ Nhỏ Nhỏ', 'triet-li-to-to', 156000, 195000, 20, 42, 2, 'NXB Phụ Nữ', 'Bích Hường', 'Cuốn sách tranh phổ cập triết học dành cho trẻ mẫu giáo', bookCovers[2], 1, 0, '8936238101429', 4.9, 201],
     ['Làm Chủ Cảm Xúc Làm Chủ Cuộc Đời', 'lam-chu-cam-xuc', 150000, 200000, 25, 28, 1, 'NXB Văn Học', 'Lý Lệ Quân', 'Tâm thế quyết định cảm xúc của một người', bookCovers[3], 1, 1, '8936238101436', 4.7, 156],
     ['Rèn Con Học Giỏi Cấp Tiểu Học', 'ren-con-hoc-gioi', 60000, 80000, 25, 63, 6, 'NXB Phụ Nữ', 'Như Quỳnh', 'Giúp trẻ xây dựng nền tảng học tập vững chắc', bookCovers[4], 1, 0, '8936238101108', 4.5, 78],
-    ['Sherlock Holmes Toàn Tập (Hộp 3 Tập)', 'sherlock-holmes-toan-tap', 315000, 420000, 25, 35, 5, 'NXB Văn Học', 'Arthur Conan Doyle', 'Bộ truyện trinh thám kinh điển của mọi thời đại', bookCovers[5], 0, 1, '8936238100002', 5.0, 521],
-    ['Khéo Ăn Nói Sẽ Có Được Thiên Hạ', 'kheo-an-noi', 97500, 130000, 25, 90, 1, 'Hồng Đức', '', 'Nghệ thuật giao tiếp để thành công', bookCovers[6], 0, 1, '8936238100001', 4.6, 378],
-    ['Thai Giáo Theo Chuyên Gia - 280 Ngày', 'thai-giao-280-ngay', 86250, 115000, 25, 120, 6, 'NXB Phụ Nữ', 'Hà Giang', 'Mỗi ngày đọc một trang trong suốt thai kỳ', bookCovers[7], 0, 1, '8936238100880', 4.9, 445],
-    ['101 Từ Đầu Tiên Cho Bé - Động Vật', '101-tu-dau-tien-dong-vat', 45000, 60000, 25, 100, 2, 'NXB Thanh Niên', '', 'Sách hình ảnh đầu tiên cho bé từ 2 tuổi', bookCovers[8], 0, 1, '8936238100699', 4.9, 312],
-    ['Combo Kỹ Năng Sống (5 Cuốn)', 'combo-ky-nang-song', 353500, 505000, 30, 15, 9, 'NXB ĐH Quốc Gia', '', 'Rèn luyện kỹ năng sống cho học sinh toàn diện', bookCovers[9], 0, 1, '8936010020', 4.8, 203],
   ];
 
   const insertProd = db.prepare(`
-    INSERT INTO products (name, slug, price, original_price, discount, stock, category_id, publisher, author, description, image, is_new, is_bestseller, sku, rating, review_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO products (name, slug, price, original_price, discount, stock, category_id, publisher, author, description, image, is_new, is_bestseller, sku, rating, review_count, pdf_url, images)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  products.forEach(p => insertProd.run(...p));
+
+  const catRows = db.prepare('SELECT id, slug FROM categories').all();
+  const catMap = {};
+  catRows.forEach(c => catMap[c.slug] = c.id);
+
+  if (productsToSeed.length > 0) {
+    productsToSeed.forEach(p => {
+      try {
+        const imgs = p.images ? JSON.stringify(p.images) : JSON.stringify([p.image].filter(Boolean));
+        insertProd.run(
+          p.name, p.slug, p.price, p.originalPrice || p.price, p.discount || 0, p.stock || 100,
+          catMap[p.category] || null, p.publisher || '', p.author || '', p.description || '', p.image || '',
+          p.isNew ? 1 : 0, p.isBestseller ? 1 : 0, p.sku || '', p.rating || 4.5, p.reviews || 0,
+          p.pdfUrl || null, imgs
+        );
+      } catch(e) { }
+    });
+  } else {
+    fallbackProducts.forEach(p => insertProd.run(...p, null, JSON.stringify([p[10]])));
+  }
 
   // Sample orders
   const statuses = ['pending', 'confirmed', 'shipping', 'delivered', 'cancelled'];
@@ -386,10 +404,12 @@ function seedDatabase() {
     const result = insertOrder.run(...ord);
     const oId = result.lastInsertRowid;
     // Add 1-2 items per order
-    insertOrderItem.run(oId, i + 1, products[i][0], products[i][10], products[i][2], 1, products[i][2]);
-    if (i % 2 === 0 && i + 1 < products.length) {
-      const p = products[i + 1];
-      insertOrderItem.run(oId, i + 2, p[0], p[10], p[2], 1, p[2]);
+    // use a fallback product from DB
+    const p1 = db.prepare('SELECT id, name, image, price FROM products ORDER BY id LIMIT 1 OFFSET ?').get(i) || {id:1, name:'Book', image:'', price:100000};
+    insertOrderItem.run(oId, p1.id, p1.name, p1.image, p1.price, 1, p1.price);
+    if (i % 2 === 0) {
+      const p2 = db.prepare('SELECT id, name, image, price FROM products ORDER BY id LIMIT 1 OFFSET ?').get(i+1) || {id:2, name:'Book 2', image:'', price:100000};
+      insertOrderItem.run(oId, p2.id, p2.name, p2.image, p2.price, 1, p2.price);
     }
   });
 
@@ -467,7 +487,10 @@ function seedLayout() {
   console.log('✅ Homepage layout seeded!');
 }
 
-seedDatabase();
-seedLayout();
+async function init() {
+  await seedDatabase();
+  seedLayout();
+}
+init();
 
 module.exports = db;

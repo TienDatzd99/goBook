@@ -1,19 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAdminAuth } from './AdminAuthContext';
 import { api } from './api';
-import { flashSaleProducts, newProducts, bestsellerProducts, comboProducts, toyProducts, products as allProducts } from '../data/products';
-
-// Helper to get auto products for a section
-const getAutoProducts = (sectionId) => {
-  switch (sectionId) {
-    case 'flash_sale': return flashSaleProducts;
-    case 'new_books': return newProducts;
-    case 'best_sellers': return bestsellerProducts;
-    case 'combos': return comboProducts;
-    case 'toys': return toyProducts;
-    default: return [];
-  }
-};
 
 export default function Layout() {
   const [layout, setLayout] = useState([]);
@@ -27,6 +14,18 @@ export default function Layout() {
   const [campaignItems, setCampaignItems] = useState({}); // { 'slug': [products] }
   const [searchQuery, setSearchQuery] = useState('');
   const { admin } = useAdminAuth();
+
+  // Helper to get auto products from the fetched `products` pool
+  const getAutoProducts = (sectionId) => {
+    switch (sectionId) {
+      case 'flash_sale': return products.filter(p => p.discount >= 25 && p.category_slug !== 'do-choi');
+      case 'new_books': return products.filter(p => p.is_new && p.category_slug !== 'do-choi');
+      case 'best_sellers': return products.filter(p => p.is_bestseller && p.category_slug !== 'do-choi');
+      case 'combos': return products.filter(p => p.category_slug === 'combo');
+      case 'toys': return products.filter(p => p.category_slug === 'do-choi');
+      default: return [];
+    }
+  };
 
   useEffect(() => {
     fetchLayout();
@@ -678,7 +677,7 @@ export default function Layout() {
                                 const slug = typeof selected === 'string' ? selected : selected.slug;
                                 const is_visible = typeof selected === 'string' ? true : selected.is_visible;
 
-                                const product = products.find(p => p.slug === slug) || allProducts?.find(p => p.slug === slug);
+                                const product = products.find(p => p.slug === slug);
                                 if (!product) return null;
                                 
                                 return (

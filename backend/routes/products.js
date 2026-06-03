@@ -5,7 +5,7 @@ const router = express.Router();
 
 // GET /api/products?page=1&limit=20&category=&search=&sort=
 router.get('/', (req, res) => {
-  const { page = 1, limit = 20, category, search, sort = 'created_at_desc', is_new, is_bestseller } = req.query;
+  const { page = 1, limit = 20, category, search, sort = 'created_at_desc', is_new, is_bestseller, min_price, max_price } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
   let where = ['1=1'];
@@ -15,6 +15,8 @@ router.get('/', (req, res) => {
   if (search) { where.push('(p.name LIKE ? OR p.author LIKE ? OR p.publisher LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
   if (is_new === '1') { where.push('p.is_new = 1'); }
   if (is_bestseller === '1') { where.push('p.is_bestseller = 1'); }
+  if (min_price !== undefined) { where.push('p.price >= ?'); params.push(parseInt(min_price)); }
+  if (max_price !== undefined) { where.push('p.price <= ?'); params.push(parseInt(max_price)); }
 
   const orderMap = {
     'created_at_desc': 'p.created_at DESC',
@@ -28,7 +30,7 @@ router.get('/', (req, res) => {
 
   const sql = `
     SELECT 
-      p.id, p.name, p.slug, p.stock, p.category_id, p.publisher, p.author, p.description, p.image, p.is_new, p.is_bestseller, p.sku, p.created_at, p.updated_at,
+      p.id, p.name, p.slug, p.stock, p.category_id, p.publisher, p.author, p.description, p.image, p.is_new, p.is_bestseller, p.sku, p.created_at, p.updated_at, p.pdf_url as pdfUrl, p.images,
       c.name as category_name, c.slug as category_slug,
       COALESCE(camp.campaign_price, p.price) as price,
       CASE WHEN camp.campaign_price IS NOT NULL THEN p.price ELSE p.original_price END as original_price,
@@ -56,6 +58,14 @@ router.get('/', (req, res) => {
   `;
 
   const products = db.prepare(sql).all([...params, parseInt(limit), offset]);
+  products.forEach(p => {
+    if (p.images) {
+      try { p.images = JSON.parse(p.images); } catch(e) { p.images = []; }
+    } else {
+      p.images = [];
+    }
+  });
+
   const { total } = db.prepare(countSql).get(params);
 
   res.json({ data: products, total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / limit) });
@@ -65,7 +75,7 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const product = db.prepare(`
     SELECT 
-      p.id, p.name, p.slug, p.stock, p.category_id, p.publisher, p.author, p.description, p.image, p.is_new, p.is_bestseller, p.sku, p.created_at, p.updated_at,
+      p.id, p.name, p.slug, p.stock, p.category_id, p.publisher, p.author, p.description, p.image, p.is_new, p.is_bestseller, p.sku, p.created_at, p.updated_at, p.pdf_url as pdfUrl, p.images,
       c.name as category_name, c.slug as category_slug,
       COALESCE(camp.campaign_price, p.price) as price,
       CASE WHEN camp.campaign_price IS NOT NULL THEN p.price ELSE p.original_price END as original_price,
@@ -84,6 +94,11 @@ router.get('/:id', (req, res) => {
   `).get(req.params.id, req.params.id);
 
   if (!product) return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
+  if (product.images) {
+    try { product.images = JSON.parse(product.images); } catch(e) { product.images = []; }
+  } else {
+    product.images = [];
+  }
   res.json(product);
 });
 
@@ -129,6 +144,52 @@ router.delete('/:id', auth, adminOnly, (req, res) => {
   const result = db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
   res.json({ message: 'Đã xóa sản phẩm' });
+});
+
+// POST /api/products/reseed - admin only (Force seed 500 products)
+router.post('/reseed', auth, adminOnly, async (req, res) => {
+  try {
+    const path = require('path');
+    const productsRealPath = 'file://' + path.join(__dirname, '../../src/data/products_real.js').replace(/\\/g, '/');
+    const module = await import(productsRealPath);
+    const productsToSeed = module.mlbProducts || [];
+    
+    if (productsToSeed.length === 0) {
+      return res.status(400).json({ error: 'Không tìm thấy dữ liệu mẫu trong file products_real.js' });
+    }
+
+    const catRows = db.prepare('SELECT id, slug FROM categories').all();
+    const catMap = {};
+    catRows.forEach(c => catMap[c.slug] = c.id);
+
+    const insertProd = db.prepare(`
+      INSERT INTO products (name, slug, price, original_price, discount, stock, category_id, publisher, author, description, image, is_new, is_bestseller, sku, rating, review_count, pdf_url, images)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let count = 0;
+    db.transaction(() => {
+      // Tùy chọn: Xóa hết sản phẩm cũ trước khi import (chỉ giữ nếu muốn)
+      db.prepare('DELETE FROM products').run();
+      
+      productsToSeed.forEach(p => {
+        try {
+          const imgs = p.images ? JSON.stringify(p.images) : JSON.stringify([p.image].filter(Boolean));
+          insertProd.run(
+            p.name, p.slug, p.price, p.originalPrice || p.price, p.discount || 0, p.stock || 100,
+            catMap[p.category] || null, p.publisher || '', p.author || '', p.description || '', p.image || '',
+            p.isNew ? 1 : 0, p.isBestseller ? 1 : 0, p.sku || '', p.rating || 4.5, p.reviews || 0, p.pdfUrl || null, imgs
+          );
+          count++;
+        } catch(e) { }
+      });
+    })();
+
+    res.json({ message: `Đã khôi phục thành công ${count} sản phẩm!` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Lỗi server khi khôi phục sản phẩm' });
+  }
 });
 
 module.exports = router;

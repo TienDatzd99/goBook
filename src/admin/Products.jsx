@@ -57,6 +57,26 @@ export default function Products() {
     finally { setDeleting(null); }
   };
 
+  const handleReseed = async () => {
+    if (!confirm('Hành động này sẽ XÓA TOÀN BỘ sản phẩm hiện tại và khôi phục lại 500 sản phẩm gốc. Bạn có chắc chắn?')) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products/reseed`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi khôi phục');
+      alert(data.message);
+      load();
+    } catch (err) {
+      alert('Lỗi: ' + err.message);
+      setLoading(false);
+    }
+  };
+
   const setField = (k, v) => setModal(m => ({ ...m, data: { ...m.data, [k]: v } }));
 
   return (
@@ -66,9 +86,14 @@ export default function Products() {
           <div className="a-page-title">📦 Sản phẩm</div>
           <div className="a-page-subtitle">Tổng cộng {total} sản phẩm</div>
         </div>
-        <button className="a-btn a-btn-primary" onClick={openAdd} id="add-product-btn">
-          ＋ Thêm sản phẩm
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="a-btn a-btn-outline" onClick={handleReseed} title="Khôi phục lại 500 sản phẩm gốc">
+            🔄 Khôi phục dữ liệu gốc
+          </button>
+          <button className="a-btn a-btn-primary" onClick={openAdd} id="add-product-btn">
+            ＋ Thêm sản phẩm
+          </button>
+        </div>
       </div>
 
       <div className="a-card">

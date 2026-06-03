@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingUp, LayoutGrid, Search, History } from 'lucide-react';
-import { flashSaleProducts, comboProducts, products } from '../../data/products';
+import CategoryIcon from '../CategoryIcon';
 import './SearchDropdown.css';
 
 function formatPrice(n) {
@@ -11,12 +11,17 @@ function formatPrice(n) {
 export default function SearchDropdown({ query, onSelect }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [trending, setTrending] = useState([]);
 
-  // Lấy ảnh đại diện từ kho sách thực tế
-  const imgThieuNhi = products.find(p => p.category === 'sach-thieu-nhi')?.image;
-  const imgQuanTri = products.find(p => p.category === 'quan-tri')?.image;
-  const imgKyNang = products.find(p => p.category === 'ky-nang-song')?.image;
-  const imgCombo = products.find(p => p.category === 'combo')?.image;
+  // Fetch trending products on mount
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/products?is_bestseller=1&limit=4`)
+      .then(res => res.json())
+      .then(d => {
+        if (d.data) setTrending(d.data);
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (!query) {
@@ -55,8 +60,7 @@ export default function SearchDropdown({ query, onSelect }) {
             <button className="sd-refresh" title="Làm mới"><History size={16} /></button>
           </div>
           <div className="sd-hot-grid">
-             {/* Using flashSaleProducts as pseudo trending items for visual match */}
-             {flashSaleProducts.slice(0, 4).map(p => (
+             {trending.map(p => (
                <Link to={`/san-pham/${p.slug}`} key={p.id} className="sd-hot-item" onClick={onSelect}>
                  <img src={p.image} alt={p.name} />
                  <span>{p.name.length > 20 ? p.name.slice(0, 18) + '...' : p.name}</span>
@@ -72,19 +76,19 @@ export default function SearchDropdown({ query, onSelect }) {
           </div>
           <div className="sd-cat-grid">
             <Link to="/danh-muc/sach-thieu-nhi" onClick={onSelect} className="sd-cat-box">
-              <img src={imgThieuNhi} alt="Sách Thiếu Nhi" />
+              <span className="sd-cat-icon"><CategoryIcon slug="sach-thieu-nhi" size={24} /></span>
               <span>Sách Thiếu Nhi</span>
             </Link>
             <Link to="/danh-muc/quan-tri" onClick={onSelect} className="sd-cat-box">
-              <img src={imgQuanTri} alt="Business" />
-              <span>Quản Trị Kinh Doanh</span>
+              <span className="sd-cat-icon"><CategoryIcon slug="quan-tri" size={24} /></span>
+              <span>Quản Trị K.Doanh</span>
             </Link>
             <Link to="/danh-muc/ky-nang-song" onClick={onSelect} className="sd-cat-box">
-              <img src={imgKyNang} alt="Self-help" />
-              <span>Kỹ Năng - Cẩm Nang</span>
+              <span className="sd-cat-icon"><CategoryIcon slug="ky-nang-song" size={24} /></span>
+              <span>Kỹ Năng Sống</span>
             </Link>
             <Link to="/danh-muc/combo" onClick={onSelect} className="sd-cat-box">
-              <img src={imgCombo} alt="Combo" />
+              <span className="sd-cat-icon"><CategoryIcon slug="combo" size={24} /></span>
               <span>Combo Sách Hot</span>
             </Link>
           </div>
