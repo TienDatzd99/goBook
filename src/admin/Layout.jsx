@@ -645,12 +645,15 @@ export default function Layout() {
                                 
                                 const searchedProducts = searchQuery.trim() 
                                   ? sourceProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                  : [];
+                                  : sourceProducts;
 
                                 return (
                                   <>
                                     {searchQuery && searchedProducts.length === 0 && (
                                       <div className="empty-text">Không tìm thấy sách nào. {isCampaignBlock && 'Lưu ý: Chỉ tìm được sách đã thêm vào Chiến dịch này.'}</div>
+                                    )}
+                                    {!searchQuery && isCampaignBlock && sourceProducts.length === 0 && (
+                                      <div className="empty-text">Chiến dịch này chưa có sách nào. Vui lòng thêm sách vào chiến dịch trước.</div>
                                     )}
                                     {searchedProducts.slice(0, 20).map(p => (
                                       <div key={p.id} className="search-item" onClick={() => addProductToSection(index, p)}>
