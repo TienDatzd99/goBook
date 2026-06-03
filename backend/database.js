@@ -74,6 +74,8 @@ db.exec(`
     sku TEXT DEFAULT '',
     rating REAL DEFAULT 4.5,
     review_count INTEGER DEFAULT 0,
+    pdf_url TEXT,
+    images TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
@@ -269,6 +271,19 @@ try {
   }
 } catch (e) {
   console.warn('DB user_addresses migration warning:', e.message || e);
+}
+
+// Migrate products to include pdf_url and images if missing
+try {
+  const prodCols = db.prepare("PRAGMA table_info(products)").all().map(r => r.name);
+  if (!prodCols.includes('pdf_url')) {
+    db.prepare("ALTER TABLE products ADD COLUMN pdf_url TEXT").run();
+  }
+  if (!prodCols.includes('images')) {
+    db.prepare("ALTER TABLE products ADD COLUMN images TEXT").run();
+  }
+} catch (e) {
+  console.warn('DB products migration warning:', e.message || e);
 }
 
 function ensureUserColumns() {
