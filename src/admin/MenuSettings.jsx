@@ -77,7 +77,7 @@ export default function MenuSettings() {
   const handleAdd = () => {
     setMenuItems([
       ...menuItems, 
-      { id: Date.now().toString(), label: '', url: '', icon: '', highlight_class: '' }
+      { id: Date.now().toString(), label: '', url: '', icon: '', highlight_class: '', is_visible: true }
     ]);
   };
 
@@ -95,7 +95,8 @@ export default function MenuSettings() {
         label: camp.name, 
         url: `/collections/${camp.slug}`, 
         icon: '🔥', 
-        highlight_class: 'nav-link-sale' 
+        highlight_class: 'nav-link-sale',
+        is_visible: true
       }
     ]);
     e.target.value = '';
@@ -138,7 +139,7 @@ export default function MenuSettings() {
       <div className="admin-card">
         <div className="menu-list-container">
           {menuItems.map((item, index) => (
-            <div key={item.id} className="menu-item-card">
+            <div key={item.id} className="menu-item-card" style={{ opacity: item.is_visible === false ? 0.6 : 1, background: item.is_visible === false ? '#fafafa' : '#fff' }}>
               <div className="menu-item-drag">
                 <button type="button" onClick={() => moveItem(index, -1)} disabled={index === 0}>▲</button>
                 <button type="button" onClick={() => moveItem(index, 1)} disabled={index === menuItems.length - 1}>▼</button>
@@ -194,6 +195,14 @@ export default function MenuSettings() {
               </div>
               
               <div className="menu-item-actions">
+                <button 
+                  type="button" 
+                  onClick={() => handleChange(item.id, 'is_visible', item.is_visible === false ? true : false)}
+                  title={item.is_visible !== false ? 'Ẩn menu này' : 'Hiện menu này'}
+                  style={{ marginRight: 8, padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}
+                >
+                  {item.is_visible !== false ? '👁️' : '🔒'}
+                </button>
                 <button type="button" className="menu-del-btn" onClick={() => handleRemove(item.id)}>
                   🗑️
                 </button>

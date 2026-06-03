@@ -322,7 +322,7 @@ export default function Header() {
 
           <div className="nav-links">
             {menuItems.length > 0 ? (
-              menuItems.map(item => (
+              menuItems.filter(item => item.is_visible !== false).map(item => (
                 <Link key={item.id} to={item.url} className={`nav-link ${item.highlight_class || ''}`}>
                   {item.icon ? `${item.icon} ${item.label}` : item.label}
                 </Link>
